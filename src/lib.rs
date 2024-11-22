@@ -356,7 +356,7 @@ impl Drop for SrValueSlice {
     fn drop(&mut self) {
         if self.owned {
             unsafe {
-                sr_free_values(self.values, self.len);
+                sr_free_values(self.values, self.len as usize);
             }
         }
     }
@@ -569,7 +569,7 @@ impl SrSession {
     ) -> Result<SrValueSlice, i32> {
         let xpath = str_to_cstring(xpath)?;
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
-        let mut values_count: u64 = 0;
+        let mut values_count: usize = 0;
         let mut values: *mut sr_val_t = unsafe { zeroed::<*mut sr_val_t>() };
 
         let rc = unsafe {
@@ -585,7 +585,7 @@ impl SrSession {
         if rc != SrError::Ok as i32 {
             Err(rc)
         } else {
-            Ok(SrValueSlice::from(values, values_count, true))
+            Ok(SrValueSlice::from(values, values_count as u64, true))
         }
     }
 
@@ -678,7 +678,7 @@ impl SrSession {
         notif_type: sr_ev_notif_type_t,
         path: *const c_char,
         values: *const sr_val_t,
-        values_cnt: size_t,
+        values_cnt: usize,
         timestamp: *mut timespec,
         private_data: *mut c_void,
     ) where
@@ -688,7 +688,7 @@ impl SrSession {
         let callback = &mut *callback_ptr;
 
         let path = CStr::from_ptr(path).to_str().unwrap();
-        let sr_values = SrValueSlice::from(values as *mut sr_val_t, values_cnt, false);
+        let sr_values = SrValueSlice::from(values as *mut sr_val_t, values_cnt as u64, false);
         let sess = SrSession::from(sess, false);
         let notif_type = SrNotifType::try_from(notif_type).expect("Convert error");
 
@@ -749,11 +749,11 @@ impl SrSession {
         sub_id: u32,
         op_path: *const c_char,
         input: *const sr_val_t,
-        input_cnt: size_t,
+        input_cnt: usize,
         event: sr_event_t,
         request_id: u32,
         output: *mut *mut sr_val_t,
-        output_cnt: *mut u64,
+        output_cnt: *mut usize,
         private_data: *mut c_void,
     ) -> i32
     where
@@ -763,13 +763,13 @@ impl SrSession {
         let callback = &mut *callback_ptr;
 
         let op_path = CStr::from_ptr(op_path).to_str().unwrap();
-        let inputs = SrValueSlice::from(input as *mut sr_val_t, input_cnt, false);
+        let inputs = SrValueSlice::from(input as *mut sr_val_t, input_cnt as u64, false);
         let sess = SrSession::from(sess, false);
         let event = SrEvent::try_from(event).expect("Convert error");
 
         let sr_output = callback(sess, sub_id, op_path, inputs, event, request_id);
         *output = sr_output.as_ptr();
-        *output_cnt = sr_output.len();
+        *output_cnt = sr_output.len() as usize;
 
         sr_error_t_SR_ERR_OK as i32
     }
@@ -966,14 +966,14 @@ impl SrSession {
         let timeout = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
 
         let mut output: *mut sr_val_t = unsafe { zeroed::<*mut sr_val_t>() };
-        let mut output_count: u64 = 0;
+        let mut output_count: usize = 0;
 
         let rc = unsafe {
             sr_rpc_send(
                 self.sess,
                 path.as_ptr(),
                 input,
-                input_cnt,
+                input_cnt as usize,
                 timeout,
                 &mut output,
                 &mut output_count,
@@ -983,7 +983,7 @@ impl SrSession {
         if rc != SrError::Ok as i32 {
             Err(rc)
         } else {
-            Ok(SrValueSlice::from(output, output_count, true))
+            Ok(SrValueSlice::from(output, output_count as u64, true))
         }
     }
 

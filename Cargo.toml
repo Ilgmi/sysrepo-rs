@@ -15,7 +15,7 @@ repository = "https://github.com/sjtakada/sysrepo-rs"
 version = "0.4.0"
 
 [build-dependencies]
-bindgen = "0.59.2"
+bindgen = "0.70.1"
 
 [dependencies]
 libc = "0.2.121"
