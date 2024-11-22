@@ -513,14 +513,14 @@ impl SrSession {
     }
 
     /// Get tree from given XPath.
-    pub fn get_data(
+    pub fn get_data<'a>(
         &mut self,
-        context: &Arc<Context>,
+        context: &'a Arc<Context>,
         xpath: &str,
         max_depth: Option<u32>,
         timeout: Option<Duration>,
         opts: u32
-    ) -> Result<DataTree, i32> {
+    ) -> Result<DataTree<'a>, i32> {
         let xpath = str_to_cstring(xpath)?;
         let max_depth = max_depth.unwrap_or(0);
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
