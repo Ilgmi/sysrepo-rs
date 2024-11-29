@@ -14,14 +14,14 @@ use std::mem::zeroed;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 use std::slice;
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 
 use libc;
 
+use yang2::context::Context;
 use yang2::data::DataTree;
 use yang2::utils::Binding;
-use yang2::context::Context;
 
 /// Error.
 #[derive(Copy, Clone)]
@@ -336,7 +336,13 @@ impl SrValueSlice {
         self.owned = true;
     }
 
-    pub fn set_int64_value(&mut self, index: usize, dflt: bool, xpath: &str, value: i64) -> Result<(), i32> {
+    pub fn set_int64_value(
+        &mut self,
+        index: usize,
+        dflt: bool,
+        xpath: &str,
+        value: i64,
+    ) -> Result<(), i32> {
         let xpath = str_to_cstring(&xpath)?;
         let xpath_ptr = xpath.as_ptr();
 
@@ -346,6 +352,29 @@ impl SrValueSlice {
             (*val).type_ = sr_val_type_t_SR_INT64_T;
             (*val).dflt = if dflt { 0 } else { 1 }; //TODO: It is really those values?
             (*val).data.int64_val = value;
+        }
+
+        Ok(())
+    }
+
+    pub fn set_string_value(
+        &mut self,
+        index: usize,
+        dflt: bool,
+        xpath: &str,
+        value: &str,
+    ) -> Result<(), i32> {
+        let xpath = str_to_cstring(&xpath)?;
+        let xpath_ptr = xpath.as_ptr();
+
+        let mut val = self.at_mut(index) as *mut sr_val_t;
+        unsafe {
+            let value = str_to_cstring(&value)?;
+            let value_ptr = value.as_ptr() as *mut c_char;
+            (*val).xpath = libc::strdup(xpath_ptr);
+            (*val).type_ = sr_val_type_t_SR_STRING_T;
+            (*val).dflt = if dflt { 0 } else { 1 }; //TODO: It is really those values?
+            (*val).data.string_val = libc::strdup(value_ptr);
         }
 
         Ok(())
@@ -519,7 +548,7 @@ impl SrSession {
         xpath: &str,
         max_depth: Option<u32>,
         timeout: Option<Duration>,
-        opts: u32
+        opts: u32,
     ) -> Result<DataTree<'a>, i32> {
         let xpath = str_to_cstring(xpath)?;
         let max_depth = max_depth.unwrap_or(0);
@@ -549,10 +578,12 @@ impl SrSession {
 
         let conn = unsafe { sr_session_get_connection(self.sess) };
 
-        if unsafe {(*data).conn} != conn {
+        if unsafe { (*data).conn } != conn {
             // It should never happen that the returned connection does not match the supplied one
             // SAFETY: data was checked as not NULL just above
-            unsafe { sr_release_data(data); }
+            unsafe {
+                sr_release_data(data);
+            }
 
             return Err(SrError::Internal as i32);
         }
@@ -605,7 +636,8 @@ impl SrSession {
         };
         let origin_ptr = origin.map_or(std::ptr::null(), |orig| orig.as_ptr());
 
-        let rc = unsafe { sr_set_item_str(self.sess, path.as_ptr(), value.as_ptr(), origin_ptr, opts) };
+        let rc =
+            unsafe { sr_set_item_str(self.sess, path.as_ptr(), value.as_ptr(), origin_ptr, opts) };
         if rc != SrError::Ok as i32 {
             Err(rc)
         } else {
@@ -955,14 +987,16 @@ impl SrSession {
     pub fn rpc_send(
         &mut self,
         path: &str,
-        input: Option<Vec<sr_val_t>>,
+        input: Option<SrValueSlice>,
         timeout: Option<Duration>,
     ) -> Result<SrValueSlice, i32> {
         let path = str_to_cstring(path)?;
+
         let (input, input_cnt) = match input {
-            Some(mut input) => (input.as_mut_ptr(), input.len() as u64),
             None => (std::ptr::null_mut(), 0),
+            Some(input) => (input.values, input.len),
         };
+
         let timeout = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
 
         let mut output: *mut sr_val_t = unsafe { zeroed::<*mut sr_val_t>() };
@@ -1105,7 +1139,6 @@ impl LibYangCtx {
 pub struct LydNode {
     /// Raw pointer to LibYang data node.
     node: *mut lyd_node,
-
     // /// Value.
     // value: Option<LydValue>,
 }
@@ -1189,7 +1222,6 @@ impl LibYang {
         let path = str_to_cstring(path)?;
         let mut node: *mut lyd_node = unsafe { zeroed::<*mut lyd_node>() };
 
-
         let val = match value {
             Some(value) => value.get_value().as_ptr(),
             None => std::ptr::null_mut(),
@@ -1205,7 +1237,6 @@ impl LibYang {
     }
 }
 
-fn str_to_cstring(s: &str) -> Result<CString,i32> {
+fn str_to_cstring(s: &str) -> Result<CString, i32> {
     CString::new(s).map_err(|_| SrError::InvalArg as i32)
 }
-
