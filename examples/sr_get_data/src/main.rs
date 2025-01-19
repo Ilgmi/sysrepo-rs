@@ -73,19 +73,21 @@ fn run() -> bool {
     };
 
     // Setup libyang context.
-    let ctx = Arc::new(Context::new(ContextFlags::NO_YANGLIBRARY).expect("Failed to create context"));
+    let ctx =
+        Arc::new(Context::new(ContextFlags::NO_YANGLIBRARY).expect("Failed to create context"));
 
     // Get the data.
-    let data = sess.get_data(&ctx, &xpath, None, None, 0).expect("Failed to get data");
+    let data = sess
+        .get_data(&ctx, &xpath, None, None, 0)
+        .expect("Failed to get data");
 
     // Print data tree in the XML format.
-    data
-        .print_file(
-            std::io::stdout(),
-            DataFormat::XML,
-            DataPrinterFlags::WD_ALL | DataPrinterFlags::WITH_SIBLINGS,
-        )
-        .expect("Failed to print data tree");
+    data.print_file(
+        std::io::stdout(),
+        DataFormat::XML,
+        DataPrinterFlags::WD_ALL | DataPrinterFlags::WITH_SIBLINGS,
+    )
+    .expect("Failed to print data tree");
 
     true
 }

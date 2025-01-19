@@ -10,8 +10,6 @@ use std::sync;
 
 use nix::sys::signal;
 
-use sysrepo::*;
-
 /// Print value.
 pub fn print_val(value: &sr_val_t) {
     let sr_val_p: *const sr_val_t = value as *const sr_val_t;
@@ -24,7 +22,9 @@ pub fn print_val(value: &sr_val_t) {
     print!("{} ", xpath.to_str().unwrap());
 
     let v = match value.type_ {
-        sr_val_type_t_SR_CONTAINER_T | sr_val_type_t_SR_CONTAINER_PRESENCE_T => String::from("(container)"),
+        sr_val_type_t_SR_CONTAINER_T | sr_val_type_t_SR_CONTAINER_PRESENCE_T => {
+            String::from("(container)")
+        }
         sr_val_type_t_SR_LIST_T => String::from("(list instance)"),
         sr_val_type_t_SR_STRING_T => {
             let string_val = unsafe { CStr::from_ptr(value.data.string_val) };

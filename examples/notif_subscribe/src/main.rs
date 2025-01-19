@@ -74,8 +74,7 @@ fn run() -> bool {
         println!("");
         println!(
             r#" ========== NOTIFICATION ({}) "{}" RECEIVED ======================="#,
-            sub_id,
-            path
+            sub_id, path
         );
         println!("");
 

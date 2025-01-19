@@ -21,10 +21,10 @@ fn main() {
         .header("wrapper.h")
         // lyd_node shall be provided by libyang2-sys
         .blocklist_item("lyd_node")
-        .raw_line("use libyang2_sys::*;")
+        .raw_line("use libyang3_sys::*;")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        // .parse_callbacks(Box::new(bindgen::Car))
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
@@ -33,6 +33,6 @@ fn main() {
     // Write the bindings to the $OUT_DIR/bindings.rs file.
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
-        .write_to_file(out_path.join("bindings.rs"))
+        .write_to_file(out_path.join("sysrepo_sys.rs"))
         .expect("Couldn't write bindings!");
 }

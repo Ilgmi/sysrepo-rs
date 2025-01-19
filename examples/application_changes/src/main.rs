@@ -130,8 +130,7 @@ fn run() -> bool {
         println!("");
         println!(
             " ========== EVENT ({}) {} CHANGES: ====================================",
-            sub_id,
-            event
+            sub_id, event
         );
         println!("");
 
