@@ -57,15 +57,38 @@ impl SrConnection {
         self.sessions.get_mut(id)
     }
 
-    pub fn start_session(&mut self, ds: SrDatastore) -> Result<&mut SrSession, i32> {
+    pub fn start_session(&mut self, ds: SrDatastore) -> Result<&mut SrSession, SrError> {
         let mut sess = std::ptr::null_mut();
         let rc = unsafe { sr_session_start(self.raw_connection, ds as u32, &mut sess) };
         if rc != SrError::Ok as i32 {
-            Err(rc)
+            Err(SrError::from(rc))
         } else {
             let id = sess;
             self.insert_session(id, SrSession::from(sess, true));
             Ok(self.sessions.get_mut(&(id as SrSessionId)).unwrap())
         }
+    }
+
+    pub fn install_module(&self) {
+        // sr_install_module2()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn create_new_connection_successful() {
+        let c = SrConnection::new(ConnectionOptions::Datastore_Running);
+        assert!(c.is_ok());
+    }
+
+    #[test]
+    fn creat_new_session_successful() {
+        let c = SrConnection::new(ConnectionOptions::Datastore_Running);
+        assert!(c.is_ok());
+        let mut c = c.unwrap();
+        let session = c.start_session(SrDatastore::Running);
+        assert!(session.is_ok());
     }
 }

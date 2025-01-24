@@ -21,10 +21,10 @@ use sysrepo_sys::{
     sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE, sr_event_t_SR_EV_DONE,
     sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE, sr_free_change_iter,
     sr_get_change_next, sr_get_changes_iter, sr_get_data, sr_get_items, sr_get_node,
-    sr_module_change_subscribe, sr_notif_send_tree, sr_notif_subscribe, sr_oper_get_subscribe,
-    sr_release_data, sr_rpc_send, sr_rpc_subscribe, sr_session_acquire_context, sr_session_ctx_t,
-    sr_session_get_connection, sr_session_stop, sr_set_item_str, sr_subscr_options_t,
-    sr_subscription_ctx_t, sr_val_t, timespec,
+    sr_notif_send_tree, sr_notif_subscribe, sr_oper_get_subscribe, sr_release_data, sr_rpc_send,
+    sr_rpc_subscribe, sr_session_acquire_context, sr_session_ctx_t, sr_session_get_connection,
+    sr_session_stop, sr_set_item_str, sr_subscr_options_t, sr_subscription_ctx_t, sr_val_t,
+    timespec,
 };
 use yang3::context::Context;
 use yang3::data::{Data, DataTree};
@@ -101,7 +101,11 @@ impl SrSession {
     }
 
     /// Get raw session context.
-    pub unsafe fn get_raw(&self) -> *mut sr_session_ctx_t {
+    pub unsafe fn get_raw_mut(&self) -> *mut sr_session_ctx_t {
+        self.raw_session
+    }
+
+    pub unsafe fn get_raw(&self) -> *const sr_session_ctx_t {
         self.raw_session
     }
 
@@ -542,7 +546,7 @@ impl SrSession {
     }
 
     /// Subscribe module change.
-    pub fn module_change_subscribe<F>(
+    pub fn on_module_change_subscribe<F>(
         &mut self,
         mod_name: &str,
         path: Option<&str>,
@@ -551,66 +555,11 @@ impl SrSession {
         opts: sr_subscr_options_t,
     ) -> Result<&mut SrSubscription, SrError>
     where
-        F: FnMut(SrSession, u32, &str, Option<&str>, SrEvent, u32) -> () + 'static,
+        F: FnMut(SrSession, u32, &str, Option<&str>, SrEvent, u32) -> Result<(), SrError>,
     {
-        let mut subscr: *mut sr_subscription_ctx_t =
-            unsafe { zeroed::<*mut sr_subscription_ctx_t>() };
-        let data = Box::into_raw(Box::new(callback));
-        let mod_name = str_to_cstring(mod_name)?;
-        let path = match path {
-            Some(path) => Some(str_to_cstring(path)?),
-            None => None,
-        };
-        let path_ptr = path.map_or(std::ptr::null(), |path| path.as_ptr());
-
-        let rc = unsafe {
-            sr_module_change_subscribe(
-                self.raw_session,
-                mod_name.as_ptr(),
-                path_ptr,
-                Some(SrSession::call_module_change::<F>),
-                data as *mut _,
-                priority,
-                opts,
-                &mut subscr,
-            )
-        };
-
-        if rc != SrError::Ok as i32 {
-            Err(SrError::from(rc))
-        } else {
-            let id = self.insert_subscription(SrSubscription::from(subscr));
-            Ok(self.subscriptions.get_mut(&id).unwrap())
-        }
-    }
-
-    unsafe extern "C" fn call_module_change<F>(
-        sess: *mut sr_session_ctx_t,
-        sub_id: u32,
-        mod_name: *const c_char,
-        path: *const c_char,
-        event: sr_event_t,
-        request_id: u32,
-        private_data: *mut c_void,
-    ) -> i32
-    where
-        F: FnMut(SrSession, u32, &str, Option<&str>, SrEvent, u32) -> (),
-    {
-        let callback_ptr = private_data as *mut F;
-        let callback = &mut *callback_ptr;
-
-        let mod_name = CStr::from_ptr(mod_name).to_str().unwrap();
-        let path = if path == std::ptr::null_mut() {
-            None
-        } else {
-            Some(CStr::from_ptr(path).to_str().unwrap())
-        };
-        let event = SrEvent::try_from(event).expect("Convert error");
-        let sess = SrSession::from(sess, false);
-
-        callback(sess, sub_id, mod_name, path, event, request_id);
-
-        sr_error_t_SR_ERR_OK as i32
+        let sub = SrSubscription::on_module_change(self, mod_name, path, callback, priority, opts)?;
+        let id = self.insert_subscription(sub);
+        Ok(self.subscriptions.get_mut(&id).unwrap())
     }
 
     /// Get changes iter.
@@ -811,7 +760,7 @@ impl Iterator for SrChangeIterator<'_> {
         let mut new_value: *mut sr_val_t = std::ptr::null_mut();
         let rc = unsafe {
             sr_get_change_next(
-                self.session.get_raw(),
+                self.session.get_raw_mut(),
                 self.iter(),
                 &mut oper,
                 &mut old_value,
@@ -855,5 +804,20 @@ impl Drop for SrChangeIterator<'_> {
         unsafe {
             sr_free_change_iter(self.iter);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::connection::{ConnectionOptions, SrConnection};
+    use crate::enums::SrDatastore;
+
+    #[test]
+    fn get_session_successful() {
+        let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("Failed to create connection");
+        let session = connection.start_session(SrDatastore::Running);
+
+        assert!(session.is_ok());
     }
 }
