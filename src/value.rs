@@ -265,7 +265,7 @@ impl SrValue {
                     (*val).data.string_val = std::ptr::null_mut();
                     (*val).type_ = sys_ffi::sr_val_type_t_SR_STRING_T;
                 }
-                Data::Enumeration(data) => {}
+                Data::Enumeration(_data) => {}
                 Data::IdentityRef(_) => {}
                 Data::InstanceIdentifier(_) => {}
                 Data::Int8(data) => {
@@ -307,7 +307,7 @@ impl SrValue {
                     (*val).data.uint64_val = *data;
                     (*val).type_ = sys_ffi::sr_val_type_t_SR_UINT64_T;
                 }
-                Data::Union(data) => {}
+                Data::Union(_data) => {}
             }
         }
 
@@ -355,7 +355,7 @@ mod test {
         let xpath = String::from("/test/test");
         let type_ = sys_ffi::sr_val_type_t_SR_STRING_T;
         let data = String::from("test");
-        let mut path = string_to_mut_c_char(&xpath).unwrap();
+        let path = string_to_mut_c_char(&xpath).unwrap();
         let data: *mut c_char = string_to_mut_c_char(&data).unwrap();
         let data = sys_ffi::sr_val_data_t { string_val: data };
         let mut test_val_t = sys_ffi::sr_val_t {
@@ -365,7 +365,7 @@ mod test {
             origin: path,
             data,
         };
-        let mut test_val_t = &mut test_val_t as *mut sys_ffi::sr_val_t;
+        let test_val_t = &mut test_val_t as *mut sys_ffi::sr_val_t;
 
         let value = SrValue::from(test_val_t, false);
         assert_eq!(value.xpath(), xpath);

@@ -1,34 +1,30 @@
+use crate::common::dup_str;
 use crate::enums::SrNotifType;
 use crate::errors::SrError;
 use crate::str_to_cstring;
 use crate::subscription::{SrSubscription, SrSubscriptionId};
 use crate::value::SrValue;
 use crate::value_slice::SrValues;
-use libyang3_sys::lyd_node;
 use std::collections::HashMap;
 use std::ffi::CStr;
-use std::fmt;
-use std::mem::zeroed;
+use std::mem::{zeroed, ManuallyDrop};
 use std::os::raw::{c_char, c_void};
-use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt, ptr};
 use sysrepo_sys as ffi_sys;
 use sysrepo_sys::{
     sr_acquire_context, sr_apply_changes, sr_change_iter_t, sr_change_oper_t,
     sr_change_oper_t_SR_OP_CREATED, sr_change_oper_t_SR_OP_DELETED,
-    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t,
-    sr_error_t_SR_ERR_CALLBACK_FAILED, sr_error_t_SR_ERR_OK, sr_ev_notif_type_t, sr_event_t,
-    sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE, sr_event_t_SR_EV_DONE,
-    sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE, sr_free_change_iter,
-    sr_get_change_next, sr_get_changes_iter, sr_get_data, sr_get_items, sr_get_node,
-    sr_notif_send_tree, sr_notif_subscribe, sr_oper_get_subscribe, sr_release_data, sr_rpc_send,
-    sr_rpc_subscribe, sr_session_acquire_context, sr_session_ctx_t, sr_session_get_connection,
-    sr_session_stop, sr_set_item_str, sr_subscr_options_t, sr_subscription_ctx_t, sr_val_t,
-    timespec,
+    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t, sr_error_t_SR_ERR_OK,
+    sr_ev_notif_type_t, sr_event_t, sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE,
+    sr_event_t_SR_EV_DONE, sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE,
+    sr_free_change_iter, sr_get_change_next, sr_get_changes_iter, sr_get_data, sr_get_items,
+    sr_get_node, sr_notif_send_tree, sr_notif_subscribe, sr_release_data, sr_rpc_send,
+    sr_rpc_subscribe, sr_session_ctx_t, sr_session_get_connection, sr_session_stop,
+    sr_set_item_str, sr_subscr_options_t, sr_subscription_ctx_t, sr_val_t, timespec,
 };
 use yang3::context::Context;
 use yang3::data::{Data, DataTree};
-use yang3::iter::NodeIterable;
 use yang3::utils::Binding;
 
 /// Event.
@@ -110,11 +106,13 @@ impl SrSession {
     }
 
     /// Returns the libyang3 context associated with this Session
-    pub fn get_context(&self) -> yang3::context::Context {
-        let d =
-            unsafe { sr_session_acquire_context(self.raw_session) } as *mut libyang3_sys::ly_ctx;
-        let t = ();
-        unsafe { yang3::context::Context::from_raw(&t, d) }
+    pub fn get_context(&self) -> ManuallyDrop<Context> {
+        let ctx = unsafe {
+            let mut ctx = sr_acquire_context(sr_session_get_connection(self.raw_session))
+                as *mut libyang3_sys::ly_ctx;
+            Context::from_raw(&(), ctx)
+        };
+        ManuallyDrop::new(ctx)
     }
 
     /// Insert subscription.
@@ -133,29 +131,56 @@ impl SrSession {
     /// Get tree from given XPath.
     pub fn get_data<'a>(
         &mut self,
-        context: &'a Arc<Context>,
+        context: &'a Context,
         xpath: &str,
         max_depth: Option<u32>,
         timeout: Option<Duration>,
         opts: u32,
     ) -> Result<DataTree<'a>, SrError> {
-        let xpath = str_to_cstring(xpath)?;
+        let xpath = dup_str(xpath)?;
         let max_depth = max_depth.unwrap_or(0);
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
 
         // SAFETY: data is used as output by sr_get_data and is not read
-        let mut data: *mut sr_data_t = unsafe { zeroed::<*mut sr_data_t>() };
+        let mut data: *mut sr_data_t = std::ptr::null_mut();
 
         let rc = unsafe {
             sr_get_data(
                 self.raw_session,
-                xpath.as_ptr(),
+                xpath,
                 max_depth,
                 timeout_ms,
                 opts,
                 &mut data,
             )
         };
+
+        if rc != SrError::Ok as i32 {
+            return Err(SrError::from(rc));
+        }
+
+        if data.is_null() {
+            return Err(SrError::NotFound);
+        }
+
+        Ok(unsafe { DataTree::from_raw(&context, (*data).tree) })
+    }
+
+    /// Get node by xpath
+    pub fn get_node<'a>(
+        &mut self,
+        context: &'a Context,
+        xpath: &str,
+        timeout: Option<Duration>,
+        _opts: u32,
+    ) -> Result<DataTree<'a>, SrError> {
+        let xpath = dup_str(xpath)?;
+        let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
+
+        // SAFETY: data is used as output by sr_get_data and is not read
+        let mut data: *mut sr_data_t = ptr::null_mut();
+
+        let rc = unsafe { sr_get_node(self.raw_session, xpath, timeout_ms, &mut data) };
 
         if rc != SrError::Ok as i32 {
             return Err(SrError::from(rc));
@@ -178,45 +203,6 @@ impl SrSession {
         }
 
         Ok(unsafe { DataTree::from_raw(context, (*data).tree) })
-    }
-
-    /// Get node by xpath
-    pub fn get_node<'a>(
-        &mut self,
-        context: &'a Arc<Context>,
-        xpath: &str,
-        timeout: Option<Duration>,
-        opts: u32,
-    ) -> Result<DataTree<'a>, SrError> {
-        let xpath = str_to_cstring(xpath)?;
-        let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
-
-        // SAFETY: data is used as output by sr_get_data and is not read
-        let mut data: *mut *mut sr_data_t = unsafe { zeroed::<*mut *mut sr_data_t>() };
-
-        let rc = unsafe { sr_get_node(self.raw_session, xpath.as_ptr(), timeout_ms, data) };
-
-        if rc != SrError::Ok as i32 {
-            return Err(SrError::from(rc));
-        }
-
-        if data.is_null() {
-            return Err(SrError::NotFound);
-        }
-
-        let conn = unsafe { sr_session_get_connection(self.raw_session) };
-
-        if unsafe { (*(*data)).conn } != conn {
-            // It should never happen that the returned connection does not match the supplied one
-            // SAFETY: data was checked as not NULL just above
-            unsafe {
-                sr_release_data(*data);
-            }
-
-            return Err(SrError::Internal);
-        }
-
-        Ok(unsafe { DataTree::from_raw(context, (*(*data)).tree) })
     }
 
     /// Get items from given Xpath, anre return result in Value slice.
@@ -443,106 +429,28 @@ impl SrSession {
         sr_error_t_SR_ERR_OK as i32
     }
 
-    pub fn oper_get_subscribe<F>(
+    pub fn on_oper_get_subscribe<F>(
         &mut self,
-        mod_name: &str,
-        path: &str,
+        module_name: &str,
+        xpath: &str,
         callback: F,
         opts: sr_subscr_options_t,
     ) -> Result<&mut SrSubscription, SrError>
     where
         F: for<'a> FnMut(
-            &'a yang3::context::Context,
+            &'a SrSession,
+            &'a Context,
             u32,
             &'a str,
             &'a str,
             Option<&'a str>,
             u32,
-            &'a DataTree<'a>,
-        ) -> Option<yang3::data::DataTree<'a>>,
+            Option<DataTree<'a>>,
+        ) -> Result<Option<DataTree<'a>>, SrError>,
     {
-        let mut subscr: *mut sr_subscription_ctx_t =
-            unsafe { zeroed::<*mut sr_subscription_ctx_t>() };
-        let data = Box::into_raw(Box::new(callback));
-        let mod_name = str_to_cstring(mod_name)?;
-        let path = str_to_cstring(path)?;
-
-        let rc = unsafe {
-            sr_oper_get_subscribe(
-                self.raw_session,
-                mod_name.as_ptr(),
-                path.as_ptr(),
-                Some(SrSession::call_get_items::<F>),
-                data as *mut _,
-                opts,
-                &mut subscr,
-            )
-        };
-
-        if rc != SrError::Ok as i32 {
-            Err(SrError::from(rc))
-        } else {
-            let id = self.insert_subscription(SrSubscription::from(subscr));
-            Ok(self.subscriptions.get_mut(&id).unwrap())
-        }
-    }
-
-    unsafe extern "C" fn call_get_items<F>(
-        sess: *mut sr_session_ctx_t,
-        sub_id: u32,
-        mod_name: *const c_char,
-        path: *const c_char,
-        request_xpath: *const c_char,
-        request_id: u32,
-        parent: *mut *mut lyd_node,
-        private_data: *mut c_void,
-    ) -> i32
-    where
-        F: for<'a> FnMut(
-            &'a yang3::context::Context,
-            u32,
-            &'a str,
-            &'a str,
-            Option<&'a str>,
-            u32,
-            &'a DataTree<'a>,
-        ) -> Option<yang3::data::DataTree<'a>>,
-    {
-        let callback_ptr = private_data as *mut F;
-        let callback = &mut *callback_ptr;
-
-        let ctx = sr_acquire_context(sr_session_get_connection(sess)) as *mut libyang3_sys::ly_ctx;
-
-        let mod_name = CStr::from_ptr(mod_name).to_str().unwrap();
-        let path = CStr::from_ptr(path).to_str().unwrap();
-        let request_xpath = if request_xpath == std::ptr::null_mut() {
-            None
-        } else {
-            Some(CStr::from_ptr(request_xpath).to_str().unwrap())
-        };
-
-        let ctx = yang3::context::Context::from_raw(&(), ctx);
-        let p = unsafe { DataTree::from_raw(&ctx, *parent) };
-        let node = callback(&ctx, sub_id, mod_name, path, request_xpath, request_id, &p);
-
-        match node {
-            Some(node) => match node.reference() {
-                None => {
-                    return sr_error_t_SR_ERR_CALLBACK_FAILED as i32;
-                }
-                Some(r) => match r.parent() {
-                    None => {
-                        return sr_error_t_SR_ERR_CALLBACK_FAILED as i32;
-                    }
-                    Some(p) => {
-                        *parent = p.raw();
-                    }
-                },
-            },
-            None => {}
-        }
-
-        sr_error_t_SR_ERR_OK as i32
+        let sub = SrSubscription::on_oper_get_subscribe(self, module_name, xpath, callback, opts)?;
+        let id = self.insert_subscription(sub);
+        Ok(self.subscriptions.get_mut(&id).unwrap())
     }
 
     /// Subscribe module change.

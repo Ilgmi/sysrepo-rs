@@ -23,7 +23,7 @@ impl SrValues {
 
     pub fn from_raw(values: *mut ffi_sys::sr_val_t, len: usize, owned: bool) -> Self {
         let mut own_values = Vec::new();
-        let mut vals = unsafe { std::slice::from_raw_parts_mut(values, len) };
+        let vals = unsafe { std::slice::from_raw_parts_mut(values, len) };
         for val in vals {
             let v = SrValue::from(val, false);
             own_values.push(v);

@@ -11,13 +11,6 @@ mod subscription;
 pub mod value;
 mod value_slice;
 
-use std::convert::TryFrom;
-
-use libc;
-
-use yang3::data::Data;
-use yang3::utils::Binding;
-
 use crate::common::str_to_cstring;
 use crate::enums::SrLogLevel;
 use crate::errors::SrError;

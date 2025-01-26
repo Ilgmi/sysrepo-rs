@@ -1,19 +1,18 @@
-use crate::common::str_to_cstring;
+use crate::common::dup_str;
 use crate::connection::SrConnection;
 use crate::errors::SrError;
 use crate::session::{SrEvent, SrSession};
 use libyang3_sys::lyd_node;
 use std::ffi::CStr;
-use std::mem::zeroed;
+use std::mem::{zeroed, ManuallyDrop};
 use std::os::raw::{c_char, c_void};
 use sysrepo_sys as ffi_sys;
 use sysrepo_sys::{
-    sr_acquire_context, sr_error_t_SR_ERR_CALLBACK_FAILED, sr_error_t_SR_ERR_OK, sr_event_t,
-    sr_module_change_subscribe, sr_oper_get_subscribe, sr_session_ctx_t, sr_session_get_connection,
-    sr_subscr_options_t, sr_subscription_ctx_t,
+    sr_error_t_SR_ERR_OK, sr_event_t, sr_module_change_subscribe, sr_oper_get_subscribe,
+    sr_session_ctx_t, sr_subscr_options_t, sr_subscription_ctx_t,
 };
+use yang3::context::Context;
 use yang3::data::{Data, DataTree};
-use yang3::iter::NodeIterable;
 use yang3::utils::Binding;
 
 pub type SrSubscriptionId = *const ffi_sys::sr_subscription_ctx_t;
@@ -95,11 +94,10 @@ impl SrSubscription {
     {
         let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t = std::ptr::null_mut();
         let data = Box::into_raw(Box::new(module_change_cb));
-        let module_name = str_to_cstring(module_name)?;
-        let module_name = unsafe { libc::strdup(module_name.as_ptr()) };
+        let module_name = dup_str(module_name)?;
         let xpath = match xpath {
             None => std::ptr::null_mut(),
-            Some(path) => unsafe { libc::strdup(str_to_cstring(path)?.as_ptr()) },
+            Some(path) => dup_str(path)?,
         };
 
         let rc = unsafe {
@@ -125,7 +123,7 @@ impl SrSubscription {
 }
 
 impl SrSubscription {
-    pub fn oper_get_subscribe<F>(
+    pub fn on_oper_get_subscribe<F>(
         session: &SrSession,
         module_name: &str,
         xpath: &str,
@@ -134,27 +132,28 @@ impl SrSubscription {
     ) -> Result<Self, SrError>
     where
         F: for<'a> FnMut(
-            &'a yang3::context::Context,
+            &'a SrSession,
+            &'a Context,
             u32,
             &'a str,
             &'a str,
             Option<&'a str>,
             u32,
-            &'a DataTree<'a>,
-        ) -> Option<yang3::data::DataTree<'a>>,
+            Option<DataTree<'a>>,
+        ) -> Result<Option<DataTree<'a>>, SrError>,
     {
         let mut subscription_ctx: *mut sr_subscription_ctx_t =
             unsafe { zeroed::<*mut sr_subscription_ctx_t>() };
         let data = Box::into_raw(Box::new(callback));
-        let mod_name = str_to_cstring(module_name)?;
-        let path = str_to_cstring(xpath)?;
+        let module_name = dup_str(module_name)?;
+        let path = dup_str(xpath)?;
 
         let rc = unsafe {
             sr_oper_get_subscribe(
                 session.get_raw_mut(),
-                mod_name.as_ptr(),
-                path.as_ptr(),
-                Some(Self::call_get_items::<F>),
+                module_name,
+                path,
+                Some(Self::oper_get_subscribe_cb::<F>),
                 data as *mut _,
                 opts,
                 &mut subscription_ctx,
@@ -169,10 +168,10 @@ impl SrSubscription {
         }
     }
 
-    unsafe extern "C" fn call_get_items<F>(
+    unsafe extern "C" fn oper_get_subscribe_cb<F>(
         sess: *mut sr_session_ctx_t,
         sub_id: u32,
-        mod_name: *const c_char,
+        module_name: *const c_char,
         path: *const c_char,
         request_xpath: *const c_char,
         request_id: u32,
@@ -181,50 +180,57 @@ impl SrSubscription {
     ) -> i32
     where
         F: for<'a> FnMut(
-            &'a yang3::context::Context,
+            &'a SrSession,
+            &'a Context,
             u32,
             &'a str,
             &'a str,
             Option<&'a str>,
             u32,
-            &'a DataTree<'a>,
-        ) -> Option<yang3::data::DataTree<'a>>,
+            Option<DataTree<'a>>,
+        ) -> Result<Option<DataTree<'a>>, SrError>,
     {
         let callback_ptr = private_data as *mut F;
         let callback = &mut *callback_ptr;
 
-        let ctx = sr_acquire_context(sr_session_get_connection(sess)) as *mut libyang3_sys::ly_ctx;
-
-        let mod_name = CStr::from_ptr(mod_name).to_str().unwrap();
-        let path = CStr::from_ptr(path).to_str().unwrap();
+        let module_name = CStr::from_ptr(module_name).to_str().unwrap();
+        let xpath = CStr::from_ptr(path).to_str().unwrap();
         let request_xpath = if request_xpath == std::ptr::null_mut() {
             None
         } else {
             Some(CStr::from_ptr(request_xpath).to_str().unwrap())
         };
 
-        let ctx = yang3::context::Context::from_raw(&(), ctx);
-        let p = unsafe { DataTree::from_raw(&ctx, *parent) };
-        let node = callback(&ctx, sub_id, mod_name, path, request_xpath, request_id, &p);
+        let session = SrSession::from(sess, false);
+        let ctx = ManuallyDrop::new(session.get_context());
 
-        match node {
-            Some(node) => match node.reference() {
-                None => {
-                    return sr_error_t_SR_ERR_CALLBACK_FAILED as i32;
+        let node_opt = if *parent == std::ptr::null_mut() {
+            None
+        } else {
+            Some(DataTree::from_raw(&ctx, *parent))
+        };
+
+        let res = callback(
+            &session,
+            &ctx,
+            sub_id,
+            module_name,
+            xpath,
+            request_xpath,
+            request_id,
+            node_opt,
+        );
+
+        match res {
+            Ok(node) => {
+                match node {
+                    None => *parent = std::ptr::null_mut(),
+                    Some(node) => *parent = node.into_raw(),
                 }
-                Some(r) => match r.parent() {
-                    None => {
-                        return sr_error_t_SR_ERR_CALLBACK_FAILED as i32;
-                    }
-                    Some(p) => {
-                        *parent = p.raw();
-                    }
-                },
-            },
-            None => {}
+                SrError::Ok as i32
+            }
+            Err(error) => error as i32,
         }
-
-        sr_error_t_SR_ERR_OK as i32
     }
 }
 
@@ -245,74 +251,131 @@ mod tests {
     use std::ops::{AddAssign, DerefMut};
     use std::sync::{Arc, Mutex};
 
-    #[test]
-    fn test_call_module_change() {
-        log_stderr(SrLogLevel::Info);
+    mod test_module_change {
+        use super::*;
 
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
-        let mut session = connection.start_session(SrDatastore::Running).unwrap();
-        let check = Arc::new(Mutex::new(0));
-        let change_cb_value = check.clone();
-        let t = |session: SrSession,
-                 sub_id: u32,
-                 module_name: &str,
-                 xpath: Option<&str>,
-                 event: SrEvent,
-                 request_id: u32|
-         -> Result<(), SrError> {
-            change_cb_value.lock().unwrap().deref_mut().add_assign(1);
-            Ok(())
-        };
+        #[test]
+        fn test_call_module_container_value_change() {
+            log_stderr(SrLogLevel::Info);
 
-        let _res = session.set_item_str("/examples:cont/l", "123", None, 0);
-        let _res = session.apply_changes(None);
-        assert!(_res.is_ok());
+            let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
+            let session = connection.start_session(SrDatastore::Running).unwrap();
+            let check = Arc::new(Mutex::new(0));
+            let change_cb_value = check.clone();
+            let callback = |_session: SrSession,
+                            _sub_id: u32,
+                            _module_name: &str,
+                            _xpath: Option<&str>,
+                            _event: SrEvent,
+                            _request_id: u32|
+             -> Result<(), SrError> {
+                change_cb_value.lock().unwrap().deref_mut().add_assign(1);
+                Ok(())
+            };
 
-        let sub_id =
-            session.on_module_change_subscribe("examples", Some("/examples:cont/l"), t, 0, 0);
-        assert!(sub_id.is_ok());
+            let _res = session.set_item_str("/examples:cont/l", "123", None, 0);
+            let _res = session.apply_changes(None);
+            assert!(_res.is_ok());
 
-        // TODO: Update Value
-        let _res = session.set_item_str("/examples:cont/l", "321", None, 0);
-        let _res = session.apply_changes(None);
-        assert!(_res.is_ok());
+            let sub_id = session.on_module_change_subscribe(
+                "examples",
+                Some("/examples:cont/l"),
+                callback,
+                0,
+                0,
+            );
+            assert!(sub_id.is_ok());
 
-        // Change is called 2 times
-        assert_eq!(*check.lock().unwrap(), 2);
+            let _res = session.set_item_str("/examples:cont/l", "321", None, 0);
+            let _res = session.apply_changes(None);
+            assert!(_res.is_ok());
+
+            // Change is called 2 times
+            assert_eq!(*check.lock().unwrap(), 2);
+        }
+
+        #[test]
+        fn test_call_module_change() {
+            log_stderr(SrLogLevel::Info);
+
+            let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
+            let session = connection.start_session(SrDatastore::Running).unwrap();
+            let check = Arc::new(Mutex::new(0));
+            let change_cb_value = check.clone();
+            let callback = |_session: SrSession,
+                            _sub_id: u32,
+                            _module_name: &str,
+                            _xpath: Option<&str>,
+                            _event: SrEvent,
+                            _request_id: u32|
+             -> Result<(), SrError> {
+                change_cb_value.lock().unwrap().deref_mut().add_assign(1);
+                Ok(())
+            };
+
+            let _res = session.set_item_str("/examples:cont/l", "123", None, 0);
+            let _res = session.apply_changes(None);
+            assert!(_res.is_ok());
+
+            let sub_id = session.on_module_change_subscribe("examples", None, callback, 0, 0);
+            assert!(sub_id.is_ok());
+
+            let _res = session.set_item_str("/examples:cont/l", "321", None, 0);
+            let _res = session.apply_changes(None);
+            assert!(_res.is_ok());
+
+            // Change is called 2 times
+            assert_eq!(*check.lock().unwrap(), 2);
+        }
     }
 
-    #[test]
-    fn test_call_module_change() {
-        log_stderr(SrLogLevel::Info);
+    mod test_oper_get_subscribe {
+        use super::*;
+        use yang3::data::DataDiffFlags;
 
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
-        let mut session = connection.start_session(SrDatastore::Running).unwrap();
-        let check = Arc::new(Mutex::new(0));
-        let change_cb_value = check.clone();
-        let t = |session: SrSession,
-                 sub_id: u32,
-                 module_name: &str,
-                 xpath: Option<&str>,
-                 event: SrEvent,
-                 request_id: u32|
-         -> Result<(), SrError> {
-            change_cb_value.lock().unwrap().deref_mut().add_assign(1);
-            Ok(())
-        };
+        #[test]
+        fn test_call_module_container_value_change() {
+            log_stderr(SrLogLevel::Info);
 
-        let _res = session.set_item_str("/examples:cont/l", "123", None, 0);
-        let _res = session.apply_changes(None);
-        assert!(_res.is_ok());
+            let mut connection =
+                SrConnection::new(ConnectionOptions::Datastore_Operational).unwrap();
+            let mut session = connection.start_session(SrDatastore::Operational).unwrap();
 
-        let sub_id = session.on_module_change_subscribe("examples", None, t, 0, 0);
-        assert!(sub_id.is_ok());
+            let sub_id = session.on_oper_get_subscribe(
+                "examples",
+                "/examples:stats",
+                move |sess, ctx, u_id, path, request, xpath, request_id, data| {
+                    let mut node = DataTree::new(&ctx);
+                    let _ref = node
+                        .new_path("/examples:stats", None, false)
+                        .map_err(|e| SrError::Internal)?;
+                    let _ref = node
+                        .new_path("/examples:stats/counter", Some("123"), false)
+                        .map_err(|e| SrError::Internal)?;
 
-        // TODO: Update Value
-        let _res = session.set_item_str("/examples:cont/l", "321", None, 0);
-        let _res = session.apply_changes(None);
-        assert!(_res.is_ok());
+                    return Ok(Some(node));
+                },
+                0,
+            );
+            assert!(sub_id.is_ok());
+            let ctx = session.get_context();
+            let _res = session.get_data(&ctx, "/examples:stats", None, None, 0);
 
-        // Change is called 2 times
-        assert_eq!(*check.lock().unwrap(), 2);
+            let mut expected_node = DataTree::new(&ctx);
+            let _ref = expected_node
+                .new_path("/examples:stats", None, false)
+                .map_err(|e| SrError::Internal)
+                .unwrap();
+            let _ref = expected_node
+                .new_path("/examples:stats/counter", Some("123"), false)
+                .map_err(|e| SrError::Internal)
+                .unwrap();
+
+            assert!(_res.is_ok());
+            let data = _res.unwrap();
+            let diff = data.diff(&expected_node, DataDiffFlags::empty());
+            assert!(diff.is_ok());
+            assert!(diff.iter().next().is_none())
+        }
     }
 }
