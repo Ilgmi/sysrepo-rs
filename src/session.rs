@@ -15,13 +15,13 @@ use sysrepo_sys as ffi_sys;
 use sysrepo_sys::{
     sr_acquire_context, sr_apply_changes, sr_change_iter_t, sr_change_oper_t,
     sr_change_oper_t_SR_OP_CREATED, sr_change_oper_t_SR_OP_DELETED,
-    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t, sr_error_t_SR_ERR_OK,
-    sr_ev_notif_type_t, sr_event_t, sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE,
-    sr_event_t_SR_EV_DONE, sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE,
-    sr_free_change_iter, sr_get_change_next, sr_get_changes_iter, sr_get_data, sr_get_items,
-    sr_get_node, sr_notif_send_tree, sr_notif_subscribe, sr_release_data, sr_rpc_send,
-    sr_rpc_subscribe, sr_session_ctx_t, sr_session_get_connection, sr_session_stop,
-    sr_set_item_str, sr_subscr_options_t, sr_subscription_ctx_t, sr_val_t, timespec,
+    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t, sr_ev_notif_type_t,
+    sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE, sr_event_t_SR_EV_DONE,
+    sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE, sr_free_change_iter,
+    sr_get_change_next, sr_get_changes_iter, sr_get_data, sr_get_items, sr_get_node,
+    sr_notif_send_tree, sr_notif_subscribe, sr_release_data, sr_rpc_send, sr_rpc_send_tree,
+    sr_session_ctx_t, sr_session_get_connection, sr_session_stop, sr_set_item_str,
+    sr_subscr_options_t, sr_subscription_ctx_t, sr_val_t, timespec,
 };
 use yang3::context::Context;
 use yang3::data::{Data, DataTree};
@@ -350,9 +350,9 @@ impl SrSession {
     }
 
     /// Subscribe RPC.
-    pub fn rpc_subscribe<F>(
+    pub fn on_rpc_subscribe<F>(
         &mut self,
-        xpath: Option<String>,
+        xpath: Option<&str>,
         callback: F,
         priority: u32,
         opts: sr_subscr_options_t,
@@ -360,73 +360,33 @@ impl SrSession {
     where
         F: FnMut(SrSession, u32, &str, SrValues, SrEvent, u32) -> SrValues + 'static,
     {
-        let mut subscr: *mut sr_subscription_ctx_t =
-            unsafe { zeroed::<*mut sr_subscription_ctx_t>() };
-        let data = Box::into_raw(Box::new(callback));
-
-        let rc = unsafe {
-            match xpath {
-                Some(xpath) => {
-                    let xpath = str_to_cstring(&xpath)?;
-                    sr_rpc_subscribe(
-                        self.raw_session,
-                        xpath.as_ptr(),
-                        Some(SrSession::call_rpc::<F>),
-                        data as *mut _,
-                        priority,
-                        opts,
-                        &mut subscr,
-                    )
-                }
-                None => sr_rpc_subscribe(
-                    self.raw_session,
-                    std::ptr::null_mut(),
-                    Some(SrSession::call_rpc::<F>),
-                    data as *mut _,
-                    priority,
-                    opts,
-                    &mut subscr,
-                ),
-            }
-        };
-
-        if rc != SrError::Ok as i32 {
-            Err(SrError::from(rc))
-        } else {
-            let id = self.insert_subscription(SrSubscription::from(subscr));
-            Ok(self.subscriptions.get_mut(&id).unwrap())
-        }
+        let sub = SrSubscription::on_rpc_subscribe(self, xpath, callback, priority, opts)?;
+        let id = self.insert_subscription(sub);
+        Ok(self.subscriptions.get_mut(&id).unwrap())
     }
 
-    unsafe extern "C" fn call_rpc<F>(
-        sess: *mut sr_session_ctx_t,
-        sub_id: u32,
-        op_path: *const c_char,
-        input: *const sr_val_t,
-        input_cnt: usize,
-        event: sr_event_t,
-        request_id: u32,
-        output: *mut *mut sr_val_t,
-        output_cnt: *mut usize,
-        private_data: *mut c_void,
-    ) -> i32
+    pub fn on_rpc_subscribe_tree<F>(
+        &mut self,
+        xpath: Option<&str>,
+        callback: F,
+        priority: u32,
+        opts: sr_subscr_options_t,
+    ) -> Result<&mut SrSubscription, SrError>
     where
-        F: FnMut(SrSession, u32, &str, SrValues, SrEvent, u32) -> SrValues,
+        F: for<'a> FnMut(
+            &'a SrSession,
+            &'a Context,
+            u32,
+            &str,
+            &DataTree<'a>,
+            &mut DataTree<'a>,
+            SrEvent,
+            u32,
+        ),
     {
-        let callback_ptr = private_data as *mut F;
-        let callback = &mut *callback_ptr;
-
-        let op_path = CStr::from_ptr(op_path).to_str().unwrap();
-        let inputs = SrValues::from_raw(input as *mut sr_val_t, input_cnt, false);
-        let sess = SrSession::from(sess, false);
-        let event = SrEvent::try_from(event).expect("Convert error");
-
-        let sr_output = callback(sess, sub_id, op_path, inputs, event, request_id);
-        let (raw, len) = sr_output.as_raw();
-        *output = raw;
-        *output_cnt = len;
-
-        sr_error_t_SR_ERR_OK as i32
+        let sub = SrSubscription::on_rpc_subscribe_tree(self, xpath, callback, priority, opts)?;
+        let id = self.insert_subscription(sub);
+        Ok(self.subscriptions.get_mut(&id).unwrap())
     }
 
     pub fn on_oper_get_subscribe<F>(
@@ -502,11 +462,11 @@ impl SrSession {
     /// Send RPC.
     pub fn rpc_send(
         &mut self,
-        path: &str,
+        xpath: &str,
         input: Option<SrValues>,
         timeout: Option<Duration>,
     ) -> Result<SrValues, SrError> {
-        let path = str_to_cstring(path)?;
+        let xpath = dup_str(xpath)?;
 
         let (input, input_cnt) = match input {
             None => (std::ptr::null_mut(), 0),
@@ -521,7 +481,7 @@ impl SrSession {
         let rc = unsafe {
             sr_rpc_send(
                 self.raw_session,
-                path.as_ptr(),
+                xpath,
                 input,
                 input_cnt as usize,
                 timeout,
@@ -533,7 +493,37 @@ impl SrSession {
         if rc != SrError::Ok as i32 {
             Err(SrError::from(rc))
         } else {
-            Ok(SrValues::from_raw(output, output_count, true))
+            Ok(SrValues::from_raw(output, output_count, false))
+        }
+    }
+
+    /// Send RPC Tree
+    pub fn rpc_send_tree<'a>(
+        &mut self,
+        ctx: &'a Context,
+        input: Option<DataTree<'a>>,
+        timeout: Option<Duration>,
+    ) -> Result<DataTree<'a>, SrError> {
+        let input = match input {
+            None => std::ptr::null_mut(),
+            Some(input) => input.into_raw(),
+        };
+
+        let timeout = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
+
+        let mut output: *mut sr_data_t = std::ptr::null_mut();
+
+        let rc = unsafe { sr_rpc_send_tree(self.raw_session, input, timeout, &mut output) };
+
+        if rc != SrError::Ok as i32 {
+            Err(SrError::from(rc))
+        } else {
+            let output = unsafe {
+                let output = (*output).tree;
+                DataTree::from_raw(&ctx, output)
+            };
+
+            Ok(output)
         }
     }
 

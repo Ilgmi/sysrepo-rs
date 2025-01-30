@@ -4,6 +4,7 @@ use crate::common::str_to_cstring;
 use crate::errors::SrError;
 use sysrepo_sys as sys_ffi;
 
+#[derive(Debug)]
 pub enum Data {
     Binary(String),
     Bits(String),
@@ -26,6 +27,7 @@ pub enum Data {
     Union(UnionData),
 }
 
+#[derive(Debug)]
 pub enum UnionData {
     Int8(i8),
     Int16(i16),
@@ -127,6 +129,7 @@ impl From<&Data> for ValType {
 }
 
 /// Single Sysrepo Value.
+#[derive(Debug)]
 pub struct SrValue {
     sr_value: *mut sys_ffi::sr_val_t,
     data: Data,
@@ -337,8 +340,8 @@ impl SrValue {
 
 impl Drop for SrValue {
     fn drop(&mut self) {
-        unsafe {
-            if self.owned {
+        if self.owned {
+            unsafe {
                 sys_ffi::sr_free_val(self.sr_value);
             }
         }
