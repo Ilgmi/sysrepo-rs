@@ -663,7 +663,7 @@ mod tests {
             let sub_id = session.on_oper_get_subscribe(
                 "examples",
                 "/examples:stats",
-                move |_sess, ctx, _u_id, _path, _request, _xpath, _request_id, _data| {
+                |_sess, ctx, _u_id, _path, _request, _xpath, _request_id, _data| {
                     let mut node = DataTree::new(&ctx);
                     let _ref = node
                         .new_path("/examples:stats", None, false)

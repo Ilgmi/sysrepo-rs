@@ -6,9 +6,14 @@
 use std::env;
 use std::thread;
 use std::time;
-
+use sysrepo::connection::{ConnectionOptions, SrConnection};
+use sysrepo::enums::{SrDatastore, SrLogLevel};
+use sysrepo::errors::SrError;
+use sysrepo::session::SrSession;
 use sysrepo::*;
 use utils::*;
+use yang3::context::Context;
+use yang3::data::DataTree;
 
 /// Show help.
 fn print_help(program: &str) {
@@ -48,40 +53,9 @@ fn run() -> bool {
     log_stderr(SrLogLevel::Warn);
 
     // Connect to sysrepo.
-    let mut sr = match SrConn::new(0) {
+    let mut sr = match SrConnection::new(ConnectionOptions::Datastore_StartUp) {
         Ok(sr) => sr,
         Err(_) => return false,
-    };
-
-    // Callback
-    let f = |ctx: &LibYangCtx,
-             sub_id: u32,
-             mod_name: &str,
-             path: &str,
-             _request_xpath: Option<&str>,
-             _request_id: u32|
-     -> Option<LydNode> {
-        println!("");
-        println!("");
-        println!(
-            r#" ========== DATA ({}) FOR "{}" "{}" REQUESED ======================="#,
-            sub_id, mod_name, path
-        );
-        println!("");
-
-        if mod_name == "examples" && path == "/examples:stats" {
-            let path1 = String::from("/examples:stats/counter");
-            let val1 = LydValue::from_string("852".to_string());
-            let path2 = String::from("/examples:stats/counter2");
-            let val2 = LydValue::from_string("1052".to_string());
-
-            let parent = LibYang::lyd_new_path(None, Some(ctx), &path1, Some(&val1), 0).unwrap();
-            LibYang::lyd_new_path(Some(&parent), None, &path2, Some(&val2), 0);
-
-            Some(parent)
-        } else {
-            None
-        }
     };
 
     // Start session.
@@ -91,7 +65,38 @@ fn run() -> bool {
     };
 
     // Subscribe for the providing the operational data.
-    if let Err(_) = sess.oper_get_subscribe(&mod_name, &path, f, 0) {
+    if let Err(_) = sess.on_oper_get_subscribe(
+        &mod_name,
+        &path,
+        |session: &SrSession,
+         ctx: &Context,
+         sub_id: u32,
+         mod_name: &str,
+         path: &str,
+         _request_xpath: Option<&str>,
+         _request_id: u32,
+         _node_opt|
+         -> Result<Option<DataTree>, SrError> {
+            println!("");
+            println!("");
+            println!(
+                r#" ========== DATA ({}) FOR "{}" "{}" REQUESED ======================="#,
+                sub_id, mod_name, path
+            );
+            println!("");
+
+            if mod_name == "examples" && path == "/examples:stats" {
+                let mut node = DataTree::new(&ctx);
+                let _val1 = node.new_path("/examples:stats/counter", Some("852"), false);
+                let _val2 = node.new_path("/examples:stats/counter2", Some("1052"), false);
+
+                Ok(Some(node))
+            } else {
+                Ok(None)
+            }
+        },
+        0,
+    ) {
         return false;
     }
 

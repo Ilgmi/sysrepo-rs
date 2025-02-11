@@ -8,7 +8,12 @@ use std::ffi::CStr;
 use std::thread;
 use std::time;
 
+use sysrepo::connection::{ConnectionOptions, SrConnection};
+use sysrepo::enums::{SrDatastore, SrLogLevel};
+use sysrepo::errors::SrError;
+use sysrepo::session::{SrChangeOperation, SrEvent, SrSession};
 use sysrepo::*;
+use sysrepo_sys::sr_val_t;
 use utils::*;
 
 /// Show help.
@@ -20,27 +25,29 @@ fn print_help(program: &str) {
 }
 
 /// Print change.
-fn print_change(oper: SrChangeOper, old_val: SrValue, new_val: SrValue) {
-    let old_val: &sr_val_t = unsafe { &*old_val.value() };
-    let new_val: &sr_val_t = unsafe { &*new_val.value() };
-
-    match oper {
-        SrChangeOper::Created => {
+fn print_change(change_operation: SrChangeOperation) {
+    match change_operation {
+        SrChangeOperation::Created(created) => {
             print!("CREATED: ");
-            print_val(&new_val);
+            let val: &sr_val_t = unsafe { &*created.value.as_raw() };
+            print_val(val);
         }
-        SrChangeOper::Deleted => {
-            print!("DELETED: ");
-            print_val(&old_val);
-        }
-        SrChangeOper::Modified => {
+        SrChangeOperation::Modified(modified) => {
+            let old_val: &sr_val_t = unsafe { &*modified.prev_value.as_raw() };
+            let new_val: &sr_val_t = unsafe { &*modified.value.as_raw() };
             print!("MODIFIED: ");
             print_val(&old_val);
             print!("to ");
             print_val(&new_val);
         }
-        SrChangeOper::Moved => {
-            let xpath = unsafe { CStr::from_ptr(new_val.xpath).to_str().unwrap() };
+        SrChangeOperation::Deleted(deleted) => {
+            let old_val: &sr_val_t = unsafe { &*deleted.value.as_raw() };
+            print!("DELETED: ");
+            print_val(&old_val);
+        }
+        SrChangeOperation::Moved(moved) => {
+            let val: &sr_val_t = unsafe { &*moved.value.as_raw() };
+            let xpath = unsafe { CStr::from_ptr(val.xpath).to_str().unwrap() };
             println!("MOVED: {}", xpath);
         }
     }
@@ -55,7 +62,7 @@ fn print_current_config(sess: &mut SrSession, mod_name: &str) {
     match sess.get_items(&xpath, None, 0) {
         Err(_) => {}
         Ok(mut values) => {
-            for v in values.as_slice() {
+            for v in values.as_raw_slice() {
                 print_val(&v);
             }
         }
@@ -95,7 +102,7 @@ fn run() -> bool {
     log_stderr(SrLogLevel::Warn);
 
     // Connect to sysrepo.
-    let mut sr = match SrConn::new(0) {
+    let mut sr = match SrConnection::new(ConnectionOptions::Datastore_StartUp) {
         Ok(sr) => sr,
         Err(_) => return false,
     };
@@ -112,18 +119,17 @@ fn run() -> bool {
     println!("");
     print_current_config(&mut sess, &mod_name);
 
-    let f = |sess: SrSession,
+    let f = |mut sess: SrSession,
              sub_id: u32,
              mod_name: &str,
              _path: Option<&str>,
              event: SrEvent,
              _request_id: u32|
-     -> () {
-        let mut sess = sess;
+     -> Result<(), SrError> {
         let path = "//.";
         let mut iter = match sess.get_changes_iter(&path) {
             Ok(iter) => iter,
-            Err(_) => return,
+            Err(_) => return Ok(()),
         };
 
         println!("");
@@ -134,8 +140,8 @@ fn run() -> bool {
         );
         println!("");
 
-        while let Some((oper, old_value, new_value)) = sess.get_change_next(&mut iter) {
-            print_change(oper, old_value, new_value);
+        for op in iter {
+            print_change(op);
         }
 
         println!("");
@@ -148,17 +154,18 @@ fn run() -> bool {
             println!("");
             print_current_config(&mut sess, mod_name);
         }
+        return Ok(());
     };
 
     // Subscribe for changes in running config.
     if args.len() == 3 {
         let xpath = args[2].clone();
-        match sess.module_change_subscribe(&mod_name, Some(&xpath[..]), f, 0, 0) {
+        match sess.on_module_change_subscribe(&mod_name, Some(&xpath[..]), f, 0, 0) {
             Err(_) => return false,
             Ok(subscr) => subscr,
         }
     } else {
-        match sess.module_change_subscribe(&mod_name, None, f, 0, 0) {
+        match sess.on_module_change_subscribe(&mod_name, None, f, 0, 0) {
             Err(_) => return false,
             Ok(subscr) => subscr,
         }

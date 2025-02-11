@@ -9,4 +9,5 @@ version = "0.3.0"
 
 [dependencies]
 sysrepo = {path = "../.."}
+sysrepo-sys = { path = "../../sysrepo-sys", version = "0.1.0" }
 utils = {path = "../utils"}

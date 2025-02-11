@@ -7,7 +7,12 @@ use std::env;
 use std::thread;
 use std::time;
 
+use sysrepo::connection::{ConnectionOptions, SrConnection};
+use sysrepo::enums::{SrDatastore, SrLogLevel, SrNotifType};
+use sysrepo::session::SrSession;
+use sysrepo::value_slice::SrValues;
 use sysrepo::*;
+use sysrepo_sys::timespec;
 use utils::*;
 
 /// Show help.
@@ -38,7 +43,7 @@ fn run() -> bool {
 
     let mod_name = args[1].clone();
     let xpath = if args.len() == 3 {
-        Some(args[2].clone())
+        Some(args[2].as_str())
     } else {
         None
     };
@@ -52,7 +57,7 @@ fn run() -> bool {
     log_stderr(SrLogLevel::Warn);
 
     // Connect to sysrepo.
-    let mut sr = match SrConn::new(0) {
+    let mut sr = match SrConnection::new(ConnectionOptions::Datastore_StartUp) {
         Ok(sr) => sr,
         Err(_) => return false,
     };
@@ -67,9 +72,10 @@ fn run() -> bool {
     let f = |_sess: SrSession,
              sub_id: u32,
              _notif_type: SrNotifType,
-             path: &str,
-             mut values: SrValueSlice,
+             path: Option<&str>,
+             values: SrValues,
              _timestamp: *mut timespec| {
+        let path = path.unwrap_or("");
         println!("");
         println!("");
         println!(
@@ -78,13 +84,13 @@ fn run() -> bool {
         );
         println!("");
 
-        for v in values.as_slice() {
+        for v in values.as_raw_slice() {
             print_val(&v);
         }
     };
 
     // Subscribe for the notifications.
-    if let Err(_) = sess.notif_subscribe(&mod_name, xpath, None, None, f, 0) {
+    if let Err(_) = sess.on_notif_subscribe(&mod_name, xpath, None, None, f, 0) {
         return false;
     }
 

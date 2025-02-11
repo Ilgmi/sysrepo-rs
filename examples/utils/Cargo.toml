@@ -10,3 +10,5 @@ version = "0.3.0"
 [dependencies]
 nix = "0.17.0"
 sysrepo = {path = "../.."}
+sysrepo-sys = { path = "../../sysrepo-sys", version = "0.1.0" }
+yang3 = { path = "../../../yang-rs" }

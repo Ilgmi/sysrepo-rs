@@ -2,14 +2,14 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-mod common;
-mod connection;
-mod enums;
+pub mod common;
+pub mod connection;
+pub mod enums;
 pub mod errors;
-mod session;
-mod subscription;
+pub mod session;
+pub mod subscription;
 pub mod value;
-mod value_slice;
+pub mod value_slice;
 
 use crate::common::str_to_cstring;
 use crate::enums::SrLogLevel;

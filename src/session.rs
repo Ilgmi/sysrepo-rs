@@ -106,7 +106,7 @@ impl SrSession {
     /// Returns the libyang3 context associated with this Session
     pub fn get_context(&self) -> ManuallyDrop<Context> {
         let ctx = unsafe {
-            let mut ctx = sr_acquire_context(sr_session_get_connection(self.raw_session))
+            let ctx = sr_acquire_context(sr_session_get_connection(self.raw_session))
                 as *mut libyang3_sys::ly_ctx;
             Context::from_raw(&(), ctx)
         };

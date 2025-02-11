@@ -4,11 +4,10 @@
 //
 
 use std::env;
-use std::sync::Arc;
-
+use sysrepo::connection::{ConnectionOptions, SrConnection};
+use sysrepo::enums::{SrDatastore, SrLogLevel};
 use sysrepo::*;
-use yang2::context::{Context, ContextFlags};
-use yang2::data::{Data, DataFormat, DataPrinterFlags};
+use yang3::data::{Data, DataFormat, DataPrinterFlags};
 
 /// Show help.
 fn print_help(program: &str) {
@@ -61,7 +60,7 @@ fn run() -> bool {
     log_stderr(SrLogLevel::Warn);
 
     // Connect to sysrepo.
-    let mut sr = match SrConn::new(0) {
+    let mut sr = match SrConnection::new(ConnectionOptions::Datastore_StartUp) {
         Ok(sr) => sr,
         Err(_) => return false,
     };
@@ -73,8 +72,7 @@ fn run() -> bool {
     };
 
     // Setup libyang context.
-    let ctx =
-        Arc::new(Context::new(ContextFlags::NO_YANGLIBRARY).expect("Failed to create context"));
+    let ctx = sess.get_context();
 
     // Get the data.
     let data = sess
@@ -82,6 +80,7 @@ fn run() -> bool {
         .expect("Failed to get data");
 
     // Print data tree in the XML format.
+
     data.print_file(
         std::io::stdout(),
         DataFormat::XML,

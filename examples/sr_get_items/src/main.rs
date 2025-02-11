@@ -5,6 +5,8 @@
 
 use std::env;
 
+use sysrepo::connection::{ConnectionOptions, SrConnection};
+use sysrepo::enums::{SrDatastore, SrLogLevel};
 use sysrepo::*;
 use utils::print_val;
 
@@ -59,7 +61,7 @@ fn run() -> bool {
     log_stderr(SrLogLevel::Warn);
 
     // Connect to sysrepo.
-    let mut sr = match SrConn::new(0) {
+    let mut sr = match SrConnection::new(ConnectionOptions::Datastore_StartUp) {
         Ok(sr) => sr,
         Err(_) => return false,
     };
@@ -74,7 +76,7 @@ fn run() -> bool {
     match sess.get_items(&xpath, None, 0) {
         Err(_) => return false,
         Ok(mut values) => {
-            for v in values.as_slice() {
+            for v in values.as_raw_slice() {
                 print_val(&v);
             }
         }

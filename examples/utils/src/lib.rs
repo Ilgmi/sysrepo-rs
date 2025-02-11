@@ -9,6 +9,7 @@ use std::ffi::CStr;
 use std::sync;
 
 use nix::sys::signal;
+use sysrepo_sys::*;
 
 /// Print value.
 pub fn print_val(value: &sr_val_t) {

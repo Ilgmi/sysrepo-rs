@@ -7,6 +7,11 @@ use std::env;
 use std::thread;
 use std::time;
 
+use sysrepo::connection::{ConnectionOptions, SrConnection};
+use sysrepo::enums::{SrDatastore, SrLogLevel};
+use sysrepo::session::{SrEvent, SrSession};
+use sysrepo::value::Data;
+use sysrepo::value_slice::SrValues;
 use sysrepo::*;
 use utils::*;
 
@@ -41,7 +46,7 @@ fn run() -> bool {
     log_stderr(SrLogLevel::Warn);
 
     // Connect to sysrepo.
-    let mut sr = match SrConn::new(0) {
+    let mut sr = match SrConnection::new(ConnectionOptions::Datastore_StartUp) {
         Ok(sr) => sr,
         Err(_) => return false,
     };
@@ -56,17 +61,24 @@ fn run() -> bool {
     let f = |_sess: SrSession,
              _sub_id: u32,
              _op_path: &str,
-             _inputs: SrValueSlice,
+             _inputs: SrValues,
              _event: SrEvent,
              _request_id: u32|
-     -> SrValueSlice {
-        let mut sr_output = SrValueSlice::new(1, false);
-        sr_output.set_int64_value(0, false, "/examples:oper/ret", -123456);
+     -> SrValues {
+        let mut sr_output = SrValues::new(1, false);
+        sr_output
+            .add_value(
+                0,
+                "/examples:oper/ret".to_string(),
+                Data::Int32(-123456),
+                false,
+            )
+            .expect("Could not add value");
         sr_output
     };
 
     // Subscribe for the RPC.
-    if let Err(_) = sess.rpc_subscribe(Some(path), f, 0, 0) {
+    if let Err(_) = sess.on_rpc_subscribe(Some(&path), f, 0, 0) {
         return false;
     }
 

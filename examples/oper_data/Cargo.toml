@@ -9,4 +9,5 @@ version = "0.3.0"
 
 [dependencies]
 sysrepo = {path = "../.."}
+yang3 = { path = "../../../yang-rs" }
 utils = {path = "../utils"}

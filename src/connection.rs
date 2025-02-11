@@ -2,8 +2,11 @@ use crate::enums::SrDatastore;
 use crate::errors::SrError;
 use crate::session::{SrSession, SrSessionId};
 use std::collections::HashMap;
+use std::mem::ManuallyDrop;
 use sysrepo_sys as ffi_sys;
-use sysrepo_sys::{sr_connect, sr_disconnect, sr_session_start};
+use sysrepo_sys::{sr_acquire_context, sr_connect, sr_disconnect, sr_session_start};
+use yang3::context::Context;
+use yang3::utils::Binding;
 
 pub enum ConnectionOptions {
     Datastore_StartUp = ffi_sys::sr_datastore_t_SR_DS_STARTUP as isize,
@@ -67,6 +70,15 @@ impl SrConnection {
             self.insert_session(id, SrSession::from(sess, true));
             Ok(self.sessions.get_mut(&(id as SrSessionId)).unwrap())
         }
+    }
+
+    /// Returns the libyang3 context associated with this Session
+    pub fn get_context(&self) -> ManuallyDrop<Context> {
+        let ctx = unsafe {
+            let ctx = sr_acquire_context(self.raw_connection) as *mut libyang3_sys::ly_ctx;
+            Context::from_raw(&(), ctx)
+        };
+        ManuallyDrop::new(ctx)
     }
 
     pub fn install_module(&self) {
