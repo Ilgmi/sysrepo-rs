@@ -44,7 +44,7 @@ impl SrValues {
             return Err(SrError::Internal);
         }
 
-        let mut values = unsafe { std::slice::from_raw_parts_mut(self.raw_values, self.len) };
+        let values = unsafe { std::slice::from_raw_parts_mut(self.raw_values, self.len) };
         let mut value = values[index];
         let val = SrValue::new(&mut value, xpath, data, dflt, false)?;
         unsafe {
@@ -58,7 +58,7 @@ impl SrValues {
             return Err(SrError::Internal);
         }
 
-        let mut values = unsafe { std::slice::from_raw_parts_mut(self.raw_values, self.len) };
+        let values = unsafe { std::slice::from_raw_parts_mut(self.raw_values, self.len) };
         let value = SrValue::from(&mut values[index], false);
         Ok(value)
     }
@@ -76,6 +76,44 @@ impl Drop for SrValues {
     fn drop(&mut self) {
         if self.owned {
             unsafe { sr_free_values(self.raw_values, self.len) }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_values_and_add_some_value_successful() {
+        let mut values = SrValues::new(1, false);
+        let r = values.add_value(0, "".to_string(), Data::String("test".to_string()), false);
+        assert_eq!(values.len(), 1);
+        assert!(r.is_ok());
+    }
+
+    #[test]
+    fn get_value_successful() {
+        let expected_path = String::from("/examples:example");
+        let expected_value = String::from("test");
+
+        let mut values = SrValues::new(1, false);
+        let _r = values.add_value(
+            0,
+            expected_path.clone(),
+            Data::String(expected_value.clone()),
+            false,
+        );
+
+        let value = values.get_value_mut(0);
+        assert!(value.is_ok());
+        let value = value.unwrap();
+        assert_eq!(&value.xpath(), &expected_path);
+        match value.data() {
+            Data::String(data) => {
+                assert_eq!(data, &expected_value);
+            }
+            _ => panic!("Expected a string data, got {:?}", value),
         }
     }
 }

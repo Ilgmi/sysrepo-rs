@@ -315,7 +315,7 @@ impl SrSubscription {
         input: *const lyd_node,
         event: sr_event_t,
         request_id: u32,
-        mut output: *mut lyd_node,
+        output: *mut lyd_node,
         private_data: *mut c_void,
     ) -> i32
     where
@@ -667,10 +667,10 @@ mod tests {
                     let mut node = DataTree::new(&ctx);
                     let _ref = node
                         .new_path("/examples:stats", None, false)
-                        .map_err(|e| SrError::Internal)?;
+                        .map_err(|_e| SrError::Internal)?;
                     let _ref = node
                         .new_path("/examples:stats/counter", Some("123"), false)
-                        .map_err(|e| SrError::Internal)?;
+                        .map_err(|_e| SrError::Internal)?;
 
                     return Ok(Some(node));
                 },
@@ -683,11 +683,11 @@ mod tests {
             let mut expected_node = DataTree::new(&ctx);
             let _ref = expected_node
                 .new_path("/examples:stats", None, false)
-                .map_err(|e| SrError::Internal)
+                .map_err(|_e| SrError::Internal)
                 .unwrap();
             let _ref = expected_node
                 .new_path("/examples:stats/counter", Some("123"), false)
-                .map_err(|e| SrError::Internal)
+                .map_err(|_e| SrError::Internal)
                 .unwrap();
 
             assert!(_res.is_ok());
@@ -695,7 +695,7 @@ mod tests {
             let diff = data.diff(&expected_node, DataDiffFlags::empty());
             assert!(diff.is_ok());
             let diff = diff.unwrap();
-            assert!(diff.iter().count() == 0);
+            assert_eq!(diff.iter().count(), 0);
         }
     }
 
@@ -711,11 +711,11 @@ mod tests {
 
             let mut connection =
                 SrConnection::new(ConnectionOptions::Datastore_Operational).unwrap();
-            let mut session = connection.start_session(SrDatastore::Operational).unwrap();
+            let session = connection.start_session(SrDatastore::Operational).unwrap();
 
             let sub_id = session.on_rpc_subscribe(
                 Some("/examples:oper"),
-                |session, sub_id, xpath, inputs, event, request_id| {
+                |_session, _sub_id, _xpath, _inputs, _event, _request_id| {
                     let mut output = SrValues::new(1, false);
                     let _r = output.add_value(
                         0,
@@ -737,6 +737,7 @@ mod tests {
                 Data::String("123".to_string()),
                 false,
             );
+            assert!(r.is_ok());
             let r = input.add_value(1, "/examples:oper/arg2".to_string(), Data::Int8(123), false);
             assert!(r.is_ok());
             let data = session.rpc_send("/examples:oper", Some(input), None);
@@ -751,6 +752,7 @@ mod tests {
                 _ => panic!("Expected a decimal64 output"),
             };
             assert_eq!(val, 123);
+            assert_eq!(&path, "/examples:oper/ret");
         }
 
         #[test]
@@ -759,11 +761,11 @@ mod tests {
 
             let mut connection =
                 SrConnection::new(ConnectionOptions::Datastore_Operational).unwrap();
-            let mut session = connection.start_session(SrDatastore::Operational).unwrap();
+            let session = connection.start_session(SrDatastore::Operational).unwrap();
 
             let sub_id = session.on_rpc_subscribe_tree(
                 Some("/examples:oper"),
-                |session, context, sub_id, xpath, inputs, output, event, request_id| {
+                |_session, _context, _sub_id, _xpath, _inputs, output, _event, _request_id| {
                     let _r = output.new_path("/examples:oper/ret", Some("123"), true);
                 },
                 0,
@@ -781,7 +783,8 @@ mod tests {
             let data = session.rpc_send_tree(&ctx, Some(input), None);
             assert!(data.is_ok());
             let data = data.unwrap();
-            let output = data.find_path("/examples:oper/ret", true);
+            let output_path = "/examples:oper/ret";
+            let output = data.find_path(output_path, true);
             assert!(output.is_ok());
             let output = output.unwrap();
             let path = output.path();
@@ -790,6 +793,7 @@ mod tests {
             let val = val.unwrap();
 
             assert_eq!(val, DataValue::Int64(123));
+            assert_eq!(&path, output_path);
         }
     }
 
