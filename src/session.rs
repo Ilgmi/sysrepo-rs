@@ -4,7 +4,7 @@ use crate::errors::SrError;
 use crate::str_to_cstring;
 use crate::subscription::{SrSubscription, SrSubscriptionId};
 use crate::value::SrValue;
-use crate::value_slice::SrValues;
+use crate::values::SrValues;
 use std::collections::HashMap;
 use std::mem::{zeroed, ManuallyDrop};
 use std::time::Duration;

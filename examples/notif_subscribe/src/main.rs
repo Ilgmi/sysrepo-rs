@@ -10,7 +10,7 @@ use std::time;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
 use sysrepo::enums::{SrDatastore, SrLogLevel, SrNotifType};
 use sysrepo::session::SrSession;
-use sysrepo::value_slice::SrValues;
+use sysrepo::values::SrValues;
 use sysrepo::*;
 use sysrepo_sys::timespec;
 use utils::*;

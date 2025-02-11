@@ -11,7 +11,7 @@ use sysrepo::connection::{ConnectionOptions, SrConnection};
 use sysrepo::enums::{SrDatastore, SrLogLevel};
 use sysrepo::session::{SrEvent, SrSession};
 use sysrepo::value::Data;
-use sysrepo::value_slice::SrValues;
+use sysrepo::values::SrValues;
 use sysrepo::*;
 use utils::*;
 

@@ -9,7 +9,7 @@ pub mod errors;
 pub mod session;
 pub mod subscription;
 pub mod value;
-pub mod value_slice;
+pub mod values;
 
 use crate::common::str_to_cstring;
 use crate::enums::SrLogLevel;

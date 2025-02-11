@@ -3,7 +3,7 @@ use crate::connection::SrConnection;
 use crate::enums::SrNotifType;
 use crate::errors::SrError;
 use crate::session::{SrEvent, SrSession};
-use crate::value_slice::SrValues;
+use crate::values::SrValues;
 use libyang3_sys::lyd_node;
 use std::ffi::CStr;
 use std::mem::{zeroed, ManuallyDrop};
