@@ -1,5 +1,6 @@
 use crate::common::dup_str;
 use crate::connection::SrConnection;
+use crate::enums::SrNotifType;
 use crate::errors::SrError;
 use crate::session::{SrEvent, SrSession};
 use crate::value_slice::SrValues;
@@ -9,9 +10,10 @@ use std::mem::{zeroed, ManuallyDrop};
 use std::os::raw::{c_char, c_void};
 use sysrepo_sys as ffi_sys;
 use sysrepo_sys::{
-    sr_error_t_SR_ERR_OK, sr_event_t, sr_module_change_subscribe, sr_oper_get_subscribe,
-    sr_rpc_subscribe, sr_rpc_subscribe_tree, sr_session_ctx_t, sr_subscr_options_t,
-    sr_subscription_ctx_t, sr_val_t,
+    sr_error_t_SR_ERR_OK, sr_ev_notif_type_t, sr_event_t, sr_module_change_subscribe,
+    sr_notif_subscribe, sr_notif_subscribe_tree, sr_oper_get_subscribe, sr_rpc_subscribe,
+    sr_rpc_subscribe_tree, sr_session_ctx_t, sr_subscr_options_t, sr_subscription_ctx_t, sr_val_t,
+    timespec,
 };
 use yang3::context::Context;
 use yang3::data::DataTree;
@@ -402,6 +404,155 @@ impl SrSubscription {
     }
 }
 
+impl SrSubscription {
+    /// Subscribe event notification.
+    pub fn on_notification_subscribe<F>(
+        session: &SrSession,
+        module_name: &str,
+        xpath: Option<&str>,
+        start_time: Option<*mut timespec>,
+        stop_time: Option<*mut timespec>,
+        callback: F,
+        opts: sr_subscr_options_t,
+    ) -> Result<Self, SrError>
+    where
+        F: FnMut(SrSession, u32, SrNotifType, Option<&str>, SrValues, *mut timespec) + 'static,
+    {
+        let mod_name = dup_str(module_name)?;
+        let xpath = match xpath {
+            Some(xpath) => dup_str(xpath)?,
+            None => std::ptr::null_mut(),
+        };
+
+        let start_time = start_time.unwrap_or(std::ptr::null_mut());
+        let stop_time = stop_time.unwrap_or(std::ptr::null_mut());
+
+        let mut subscription_ctx: *mut sr_subscription_ctx_t = std::ptr::null_mut();
+        let data = Box::into_raw(Box::new(callback));
+        let rc = unsafe {
+            sr_notif_subscribe(
+                session.get_raw_mut(),
+                mod_name,
+                xpath,
+                start_time,
+                stop_time,
+                Some(Self::call_event_notif_cb::<F>),
+                data as *mut _,
+                opts,
+                &mut subscription_ctx,
+            )
+        };
+
+        match rc {
+            0 => Ok(Self {
+                raw_subscription: subscription_ctx,
+            }),
+            rc => Err(SrError::from(rc)),
+        }
+    }
+
+    pub fn on_notification_subscribe_tree<F>(
+        session: &SrSession,
+        module_name: &str,
+        xpath: Option<&str>,
+        start_time: Option<*mut timespec>,
+        stop_time: Option<*mut timespec>,
+        callback: F,
+        opts: sr_subscr_options_t,
+    ) -> Result<Self, SrError>
+    where
+        F: FnMut(&SrSession, u32, SrNotifType, &DataTree, *mut timespec),
+    {
+        let mod_name = dup_str(module_name)?;
+        let xpath = match xpath {
+            Some(xpath) => dup_str(xpath)?,
+            None => std::ptr::null_mut(),
+        };
+
+        let start_time = start_time.unwrap_or(std::ptr::null_mut());
+        let stop_time = stop_time.unwrap_or(std::ptr::null_mut());
+
+        let mut subscription_ctx: *mut sr_subscription_ctx_t = std::ptr::null_mut();
+        let data = Box::into_raw(Box::new(callback));
+        let rc = unsafe {
+            sr_notif_subscribe_tree(
+                session.get_raw_mut(),
+                mod_name,
+                xpath,
+                start_time,
+                stop_time,
+                Some(Self::call_event_notif_tree_cb::<F>),
+                data as *mut _,
+                opts,
+                &mut subscription_ctx,
+            )
+        };
+
+        match rc {
+            0 => Ok(Self {
+                raw_subscription: subscription_ctx,
+            }),
+            rc => Err(SrError::from(rc)),
+        }
+    }
+
+    unsafe extern "C" fn call_event_notif_tree_cb<F>(
+        sess: *mut sr_session_ctx_t,
+        sub_id: u32,
+        notif_type: ffi_sys::sr_ev_notif_type_t,
+        notif: *const lyd_node,
+        timestamp: *mut timespec,
+        private_data: *mut std::os::raw::c_void,
+    ) where
+        F: FnMut(&SrSession, u32, SrNotifType, &DataTree, *mut timespec),
+    {
+        let callback_ptr = private_data as *mut F;
+        let callback = &mut *callback_ptr;
+
+        let session = SrSession::from(sess, false);
+        let ctx = session.get_context();
+        let data_tree = ManuallyDrop::new(DataTree::from_raw(&ctx, notif as *mut _));
+
+        let notif_type = SrNotifType::try_from(notif_type).map_err(|_| SrError::Internal);
+        match notif_type {
+            Ok(notif_type) => {
+                callback(&session, sub_id, notif_type, &data_tree, timestamp);
+            }
+            Err(_) => {}
+        }
+    }
+
+    unsafe extern "C" fn call_event_notif_cb<F>(
+        sess: *mut sr_session_ctx_t,
+        sub_id: u32,
+        notif_type: sr_ev_notif_type_t,
+        path: *const c_char,
+        values: *const sr_val_t,
+        values_cnt: usize,
+        timestamp: *mut timespec,
+        private_data: *mut c_void,
+    ) where
+        F: FnMut(SrSession, u32, SrNotifType, Option<&str>, SrValues, *mut timespec),
+    {
+        let callback_ptr = private_data as *mut F;
+        let callback = &mut *callback_ptr;
+        let xpath = if path.is_null() {
+            None
+        } else {
+            Some(CStr::from_ptr(path).to_str().unwrap())
+        };
+        let sr_values = SrValues::from_raw(values as *mut sr_val_t, values_cnt, false);
+        let sess = SrSession::from(sess, false);
+        let notif_type = SrNotifType::try_from(notif_type).map_err(|_| SrError::Internal);
+        match notif_type {
+            Ok(notif_type) => {
+                callback(sess, sub_id, notif_type, xpath, sr_values, timestamp);
+            }
+            Err(_) => {}
+        }
+    }
+}
+
 impl Drop for SrSubscription {
     fn drop(&mut self) {
         unsafe {
@@ -507,12 +658,12 @@ mod tests {
 
             let mut connection =
                 SrConnection::new(ConnectionOptions::Datastore_Operational).unwrap();
-            let mut session = connection.start_session(SrDatastore::Operational).unwrap();
+            let session = connection.start_session(SrDatastore::Operational).unwrap();
 
             let sub_id = session.on_oper_get_subscribe(
                 "examples",
                 "/examples:stats",
-                move |sess, ctx, u_id, path, request, xpath, request_id, data| {
+                move |_sess, ctx, _u_id, _path, _request, _xpath, _request_id, _data| {
                     let mut node = DataTree::new(&ctx);
                     let _ref = node
                         .new_path("/examples:stats", None, false)
@@ -543,7 +694,8 @@ mod tests {
             let data = _res.unwrap();
             let diff = data.diff(&expected_node, DataDiffFlags::empty());
             assert!(diff.is_ok());
-            assert!(diff.iter().next().is_none())
+            let diff = diff.unwrap();
+            assert!(diff.iter().count() == 0);
         }
     }
 
@@ -638,6 +790,109 @@ mod tests {
             let val = val.unwrap();
 
             assert_eq!(val, DataValue::Int64(123));
+        }
+    }
+
+    mod test_on_notification_subscribe {
+        use super::*;
+        use crate::value::Data;
+        use yang3::data::Data as yang_data;
+        use yang3::schema::DataValue;
+
+        #[test]
+        fn test_on_notification_subscribe() {
+            let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
+            let session = connection.start_session(SrDatastore::Running).unwrap();
+            let check_cb = Arc::new(Mutex::new(0));
+            let check_for_cb = check_cb.clone();
+            let subscription = session.on_notif_subscribe(
+                "examples",
+                Some("/examples:notif"),
+                None,
+                None,
+                move |_session, _sub_id, _notify_type, xpath, values, _timestamp| {
+                    match _notify_type {
+                        SrNotifType::Realtime | SrNotifType::Replay => {
+                            assert_eq!(xpath, Some("/examples:notif"));
+                            assert_eq!(values.len(), 1);
+                            let value = values.get_value_mut(0).expect("value");
+                            match value.data() {
+                                Data::Decimal64(data) => {
+                                    assert!((*data).eq(&123.0))
+                                }
+                                _ => panic!("Expected a decimal64 output"),
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    check_for_cb.lock().unwrap().add_assign(1);
+                },
+                0,
+            );
+            assert!(subscription.is_ok());
+            let mut values = SrValues::new(1, false);
+            assert!(values
+                .add_value(
+                    0,
+                    "/examples:notif/val".to_string(),
+                    Data::Decimal64(123.0),
+                    false
+                )
+                .is_ok());
+
+            let notification_send = session.notif_send("/examples:notif", &values, 0, 1);
+            assert!(notification_send.is_ok());
+        }
+
+        #[test]
+        fn test_on_notification_subscribe_tree() {
+            let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
+            let session = connection.start_session(SrDatastore::Running).unwrap();
+            let check_cb = Arc::new(Mutex::new(0));
+            let check_for_cb = check_cb.clone();
+            let subscription = session.on_notif_subscribe_tree(
+                "examples",
+                Some("/examples:notif"),
+                None,
+                None,
+                move |_session, _sub_id, _notify_type, node, _timestamp| {
+                    match _notify_type {
+                        SrNotifType::Realtime | SrNotifType::Replay => {
+                            let node = node.reference().expect("node");
+                            let xpath = node.path();
+                            assert_eq!(xpath, "/examples:notif");
+
+                            let value_node =
+                                node.find_path("/examples:notif/val", false).expect("value");
+                            let value = value_node.value();
+
+                            match value {
+                                Some(value) => match value {
+                                    DataValue::Other(data) => {
+                                        assert!(data.eq("123.0"))
+                                    }
+                                    _ => panic!("Expected a decimal64 output"),
+                                },
+                                None => {
+                                    panic!("Expected a decimal64 output")
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    check_for_cb.lock().unwrap().add_assign(1);
+                },
+                0,
+            );
+            assert!(subscription.is_ok());
+
+            let ctx = session.get_context();
+            let mut notf_node = DataTree::new(&ctx);
+            let r = notf_node.new_path("/examples:notif/val", Some("123.0"), false);
+            assert!(r.is_ok());
+            session.notif_send_tree(&notf_node, 0, 1).unwrap()
         }
     }
 }

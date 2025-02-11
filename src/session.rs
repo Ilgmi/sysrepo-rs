@@ -6,22 +6,20 @@ use crate::subscription::{SrSubscription, SrSubscriptionId};
 use crate::value::SrValue;
 use crate::value_slice::SrValues;
 use std::collections::HashMap;
-use std::ffi::CStr;
 use std::mem::{zeroed, ManuallyDrop};
-use std::os::raw::{c_char, c_void};
 use std::time::Duration;
 use std::{fmt, ptr};
 use sysrepo_sys as ffi_sys;
 use sysrepo_sys::{
     sr_acquire_context, sr_apply_changes, sr_change_iter_t, sr_change_oper_t,
     sr_change_oper_t_SR_OP_CREATED, sr_change_oper_t_SR_OP_DELETED,
-    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t, sr_ev_notif_type_t,
+    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t,
     sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE, sr_event_t_SR_EV_DONE,
     sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE, sr_free_change_iter,
-    sr_get_change_next, sr_get_changes_iter, sr_get_data, sr_get_items, sr_get_node,
-    sr_notif_send_tree, sr_notif_subscribe, sr_release_data, sr_rpc_send, sr_rpc_send_tree,
-    sr_session_ctx_t, sr_session_get_connection, sr_session_stop, sr_set_item_str,
-    sr_subscr_options_t, sr_subscription_ctx_t, sr_val_t, timespec,
+    sr_get_change_next, sr_get_changes_iter, sr_get_data, sr_get_items, sr_get_node, sr_notif_send,
+    sr_notif_send_tree, sr_release_data, sr_rpc_send, sr_rpc_send_tree, sr_session_ctx_t,
+    sr_session_get_connection, sr_session_stop, sr_set_item_str, sr_subscr_options_t, sr_val_t,
+    timespec,
 };
 use yang3::context::Context;
 use yang3::data::{Data, DataTree};
@@ -280,73 +278,54 @@ impl SrSession {
     }
 
     /// Subscribe event notification.
-    pub fn notif_subscribe<F>(
+    pub fn on_notif_subscribe<F>(
         &mut self,
-        mod_name: &str,
-        xpath: Option<String>,
+        module_name: &str,
+        xpath: Option<&str>,
         start_time: Option<*mut timespec>,
         stop_time: Option<*mut timespec>,
         callback: F,
         opts: sr_subscr_options_t,
     ) -> Result<&mut SrSubscription, SrError>
     where
-        F: FnMut(SrSession, u32, SrNotifType, &str, SrValues, *mut timespec) + 'static,
+        F: FnMut(SrSession, u32, SrNotifType, Option<&str>, SrValues, *mut timespec) + 'static,
     {
-        let mod_name = str_to_cstring(mod_name)?;
-        let xpath = match xpath {
-            Some(path) => Some(str_to_cstring(&path)?),
-            None => None,
-        };
-        let xpath_ptr = xpath.map_or(std::ptr::null(), |xpath| xpath.as_ptr());
-        let start_time = start_time.unwrap_or(std::ptr::null_mut());
-        let stop_time = stop_time.unwrap_or(std::ptr::null_mut());
-
-        let mut subscr: *mut sr_subscription_ctx_t =
-            unsafe { zeroed::<*mut sr_subscription_ctx_t>() };
-        let data = Box::into_raw(Box::new(callback));
-        let rc = unsafe {
-            sr_notif_subscribe(
-                self.raw_session,
-                mod_name.as_ptr(),
-                xpath_ptr,
-                start_time,
-                stop_time,
-                Some(SrSession::call_event_notif::<F>),
-                data as *mut _,
-                opts,
-                &mut subscr,
-            )
-        };
-
-        if rc != SrError::Ok as i32 {
-            Err(SrError::from(rc))
-        } else {
-            let id = self.insert_subscription(SrSubscription::from(subscr));
-            Ok(self.subscriptions.get_mut(&id).unwrap())
-        }
+        let sub = SrSubscription::on_notification_subscribe(
+            self,
+            module_name,
+            xpath,
+            start_time,
+            stop_time,
+            callback,
+            opts,
+        )?;
+        let id = self.insert_subscription(sub);
+        Ok(self.subscriptions.get_mut(&id).unwrap())
     }
 
-    unsafe extern "C" fn call_event_notif<F>(
-        sess: *mut sr_session_ctx_t,
-        sub_id: u32,
-        notif_type: sr_ev_notif_type_t,
-        path: *const c_char,
-        values: *const sr_val_t,
-        values_cnt: usize,
-        timestamp: *mut timespec,
-        private_data: *mut c_void,
-    ) where
-        F: FnMut(SrSession, u32, SrNotifType, &str, SrValues, *mut timespec),
+    pub fn on_notif_subscribe_tree<F>(
+        &mut self,
+        module_name: &str,
+        xpath: Option<&str>,
+        start_time: Option<*mut timespec>,
+        stop_time: Option<*mut timespec>,
+        callback: F,
+        opts: sr_subscr_options_t,
+    ) -> Result<&mut SrSubscription, SrError>
+    where
+        F: FnMut(&SrSession, u32, SrNotifType, &DataTree, *mut timespec),
     {
-        let callback_ptr = private_data as *mut F;
-        let callback = &mut *callback_ptr;
-
-        let path = CStr::from_ptr(path).to_str().unwrap();
-        let sr_values = SrValues::from_raw(values as *mut sr_val_t, values_cnt, false);
-        let sess = SrSession::from(sess, false);
-        let notif_type = SrNotifType::try_from(notif_type).expect("Convert error");
-
-        callback(sess, sub_id, notif_type, path, sr_values, timestamp);
+        let sub = SrSubscription::on_notification_subscribe_tree(
+            self,
+            module_name,
+            xpath,
+            start_time,
+            stop_time,
+            callback,
+            opts,
+        )?;
+        let id = self.insert_subscription(sub);
+        Ok(self.subscriptions.get_mut(&id).unwrap())
     }
 
     /// Subscribe RPC.
@@ -452,6 +431,24 @@ impl SrSession {
         wait: i32,
     ) -> Result<(), SrError> {
         let rc = unsafe { sr_notif_send_tree(self.raw_session, notif.raw(), timeout_ms, wait) };
+        if rc != SrError::Ok as i32 {
+            Err(SrError::from(rc))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Send event notify.
+    pub fn notif_send(
+        &mut self,
+        xpath: &str,
+        values: &SrValues,
+        timeout_ms: u32,
+        wait: i32,
+    ) -> Result<(), SrError> {
+        let xpath = dup_str(xpath)?;
+        let (values, len) = values.as_raw();
+        let rc = unsafe { sr_notif_send(self.raw_session, xpath, values, len, timeout_ms, wait) };
         if rc != SrError::Ok as i32 {
             Err(SrError::from(rc))
         } else {

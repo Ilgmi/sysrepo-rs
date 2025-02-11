@@ -29,6 +29,10 @@ impl SrValues {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
     pub fn add_value(
         &mut self,
         index: usize,
