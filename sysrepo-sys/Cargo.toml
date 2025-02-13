@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-libyang3-sys = "0.2.0"
+libyang3-sys = { path = "../../yang-rs/libyang3-sys" }
 
 
 [build-dependencies]

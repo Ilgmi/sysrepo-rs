@@ -320,7 +320,7 @@ impl SrSubscription {
     ) -> i32
     where
         F: for<'a> FnMut(
-            &'a SrSession,
+            &'a mut SrSession,
             &'a Context,
             u32,
             &str,
@@ -335,7 +335,7 @@ impl SrSubscription {
 
         let op_path = CStr::from_ptr(op_path).to_str().unwrap();
 
-        let sess = SrSession::from(sess, false);
+        let mut sess = SrSession::from(sess, false);
         let ctx = sess.get_context();
 
         let inputs = ManuallyDrop::new(DataTree::from_raw(&ctx, input as *mut _));
@@ -344,7 +344,7 @@ impl SrSubscription {
         let event = SrEvent::try_from(event).expect("Convert error");
 
         callback(
-            &sess,
+            &mut sess,
             &ctx,
             sub_id,
             op_path,
@@ -366,7 +366,7 @@ impl SrSubscription {
     ) -> Result<Self, SrError>
     where
         F: for<'a> FnMut(
-            &'a SrSession,
+            &'a mut SrSession,
             &'a Context,
             u32,
             &str,

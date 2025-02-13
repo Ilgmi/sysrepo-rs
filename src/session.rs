@@ -5,8 +5,12 @@ use crate::str_to_cstring;
 use crate::subscription::{SrSubscription, SrSubscriptionId};
 use crate::value::SrValue;
 use crate::values::SrValues;
+use libc::c_int;
+use libyang3_sys::lyd_node;
 use std::collections::HashMap;
+use std::ffi::CStr;
 use std::mem::{zeroed, ManuallyDrop};
+use std::os::raw::c_char;
 use std::time::Duration;
 use std::{fmt, ptr};
 use sysrepo_sys as ffi_sys;
@@ -16,10 +20,10 @@ use sysrepo_sys::{
     sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t,
     sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE, sr_event_t_SR_EV_DONE,
     sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE, sr_free_change_iter,
-    sr_get_change_next, sr_get_changes_iter, sr_get_data, sr_get_items, sr_get_node, sr_notif_send,
-    sr_notif_send_tree, sr_release_data, sr_rpc_send, sr_rpc_send_tree, sr_session_ctx_t,
-    sr_session_get_connection, sr_session_stop, sr_set_item_str, sr_subscr_options_t, sr_val_t,
-    timespec,
+    sr_get_change_next, sr_get_change_tree_next, sr_get_changes_iter, sr_get_data, sr_get_items,
+    sr_get_node, sr_notif_send, sr_notif_send_tree, sr_release_data, sr_rpc_send, sr_rpc_send_tree,
+    sr_session_ctx_t, sr_session_get_connection, sr_session_stop, sr_set_item_str,
+    sr_subscr_options_t, sr_val_t, timespec,
 };
 use yang3::context::Context;
 use yang3::data::{Data, DataTree};
@@ -353,7 +357,7 @@ impl SrSession {
     ) -> Result<&mut SrSubscription, SrError>
     where
         F: for<'a> FnMut(
-            &'a SrSession,
+            &'a mut SrSession,
             &'a Context,
             u32,
             &str,
@@ -420,6 +424,17 @@ impl SrSession {
             Err(SrError::from(rc))
         } else {
             Ok(SrChangeIterator::from(self, it))
+        }
+    }
+
+    pub fn get_changes_iter_tree(&self, path: &str) -> Result<SrChangeIteratorTree, SrError> {
+        let mut it = unsafe { zeroed::<*mut sr_change_iter_t>() };
+        let path = str_to_cstring(path)?;
+        let rc = unsafe { sr_get_changes_iter(self.raw_session, path.as_ptr(), &mut it) };
+        if rc != SrError::Ok as i32 {
+            Err(SrError::from(rc))
+        } else {
+            Ok(SrChangeIteratorTree::from(self, it))
         }
     }
 
@@ -637,6 +652,7 @@ pub struct DeletedOperation {
 
 pub struct MovedOperation {
     pub value: SrValue,
+    pub prev_value: SrValue,
 }
 
 pub enum SrChangeOperation {
@@ -682,7 +698,11 @@ impl Iterator for SrChangeIterator<'_> {
                         SrChangeOperation::Deleted(DeletedOperation { value: new_value })
                     }
                     SrChangeOper::Moved => {
-                        SrChangeOperation::Moved(MovedOperation { value: new_value })
+                        let old_value = SrValue::from(old_value, false);
+                        SrChangeOperation::Moved(MovedOperation {
+                            value: new_value,
+                            prev_value: old_value,
+                        })
                     }
                 },
                 Err(_) => return None,
@@ -699,6 +719,139 @@ impl Drop for SrChangeIterator<'_> {
         unsafe {
             sr_free_change_iter(self.iter);
         }
+    }
+}
+
+pub struct SrChangeIteratorTree<'a> {
+    /// Raw pointer to iter.
+    iter: *mut sr_change_iter_t,
+    session: &'a SrSession,
+    ctx: ManuallyDrop<Context>,
+}
+
+impl<'a> SrChangeIteratorTree<'a> {
+    pub fn from(session: &'a SrSession, iter: *mut sr_change_iter_t) -> Self {
+        let ctx = session.get_context();
+        Self { session, iter, ctx }
+    }
+
+    pub fn iter(&mut self) -> *mut sr_change_iter_t {
+        self.iter
+    }
+}
+
+pub struct CreatedOperationTree {
+    pub node: *const lyd_node,
+    pub prev_value: Option<String>,
+    pub prev_list: Option<String>,
+    pub prev_default_value: bool,
+}
+
+pub struct ModifiedOperationTree {
+    pub node: *const lyd_node,
+    pub prev_value: Option<String>,
+    pub prev_list: Option<String>,
+    pub prev_default_value: bool,
+}
+
+pub struct DeletedOperationTree {
+    pub node: *const lyd_node,
+}
+
+pub struct MovedOperationTree {
+    pub node: *const lyd_node,
+    pub prev_value: Option<String>,
+    pub prev_list: Option<String>,
+    pub prev_default_value: bool,
+}
+
+pub enum SrChangeOperationTree {
+    Created(CreatedOperationTree),
+    Modified(ModifiedOperationTree),
+    Deleted(DeletedOperationTree),
+    Moved(MovedOperationTree),
+}
+
+impl<'a> SrChangeOperationTree {
+    pub fn from(
+        op: SrChangeOper,
+        node: *const lyd_node,
+        prev_value: Option<String>,
+        prev_list: Option<String>,
+        prev_dflt: bool,
+    ) -> Self {
+        match op {
+            SrChangeOper::Created => SrChangeOperationTree::Created(CreatedOperationTree {
+                node,
+                prev_value,
+                prev_list,
+                prev_default_value: prev_dflt,
+            }),
+            SrChangeOper::Modified => SrChangeOperationTree::Modified(ModifiedOperationTree {
+                node,
+                prev_value,
+                prev_list,
+                prev_default_value: prev_dflt,
+            }),
+            SrChangeOper::Deleted => SrChangeOperationTree::Deleted(DeletedOperationTree { node }),
+            SrChangeOper::Moved => SrChangeOperationTree::Moved(MovedOperationTree {
+                node,
+                prev_value,
+                prev_list,
+                prev_default_value: prev_dflt,
+            }),
+        }
+    }
+}
+
+impl<'a> Iterator for SrChangeIteratorTree<'a> {
+    type Item = SrChangeOperationTree;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut oper: sr_change_oper_t = 0;
+        let mut node: *const lyd_node = std::ptr::null_mut();
+        let mut prev_value: *const c_char = std::ptr::null_mut();
+        let mut prev_list: *const c_char = std::ptr::null_mut();
+        let mut prev_default_value: c_int = 0;
+        let rc = unsafe {
+            sr_get_change_tree_next(
+                self.session.get_raw_mut(),
+                self.iter(),
+                &mut oper,
+                &mut node,
+                &mut prev_value,
+                &mut prev_list,
+                &mut prev_default_value,
+            )
+        };
+
+        if rc == SrError::NotFound as _ {
+            return None;
+        }
+
+        let oper = match SrChangeOper::try_from(oper) {
+            Ok(oper) => oper,
+            Err(_) => return None,
+        };
+
+        let prev_value = match prev_value.is_null() {
+            true => None,
+            false => unsafe { Some(CStr::from_ptr(prev_value).to_string_lossy().into_owned()) },
+        };
+        let prev_list = match prev_list.is_null() {
+            true => None,
+            false => Some(unsafe { CStr::from_ptr(prev_list).to_string_lossy().into_owned() }),
+        };
+
+        let prev_default_value = if prev_default_value > 0 { true } else { false };
+
+        Some(SrChangeOperationTree::from(
+            oper,
+            node,
+            prev_value,
+            prev_list,
+            prev_default_value,
+        ))
     }
 }
 
