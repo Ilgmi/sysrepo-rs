@@ -1,5 +1,5 @@
 use crate::common::dup_str;
-use crate::enums::SrNotifType;
+use crate::enums::{DefaultOperation, SrNotifType};
 use crate::errors::SrError;
 use crate::str_to_cstring;
 use crate::subscription::{SrSubscription, SrSubscriptionId};
@@ -17,7 +17,7 @@ use sysrepo_sys as ffi_sys;
 use sysrepo_sys::{
     sr_acquire_context, sr_apply_changes, sr_change_iter_t, sr_change_oper_t,
     sr_change_oper_t_SR_OP_CREATED, sr_change_oper_t_SR_OP_DELETED,
-    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t,
+    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t, sr_edit_batch,
     sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE, sr_event_t_SR_EV_DONE,
     sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE, sr_free_change_iter,
     sr_get_change_next, sr_get_change_tree_next, sr_get_changes_iter, sr_get_data, sr_get_items,
@@ -205,6 +205,21 @@ impl SrSession {
         }
 
         Ok(unsafe { DataTree::from_raw(context, (*data).tree) })
+    }
+
+    pub fn edit_batch<'a>(
+        &mut self,
+        node: &DataTree<'a>,
+        oper: DefaultOperation,
+    ) -> Result<(), SrError> {
+        let oper = dup_str(oper.as_str())?;
+        let ret = unsafe { sr_edit_batch(self.raw_session, node.raw(), oper) };
+
+        if ret != SrError::Ok as i32 {
+            return Err(SrError::from(ret));
+        }
+
+        Ok(())
     }
 
     /// Get items from given Xpath, anre return result in Value slice.

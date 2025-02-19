@@ -126,3 +126,19 @@ pub enum LydAnyDataValueType {
     Datatree = LYD_ANYDATA_VALUETYPE_LYD_ANYDATA_DATATREE as isize,
     Lyb = LYD_ANYDATA_VALUETYPE_LYD_ANYDATA_LYB as isize,
 }
+
+pub enum DefaultOperation {
+    Merge,
+    Replace,
+    None,
+}
+
+impl DefaultOperation {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DefaultOperation::Merge => "merge",
+            DefaultOperation::Replace => "replace",
+            DefaultOperation::None => "none",
+        }
+    }
+}

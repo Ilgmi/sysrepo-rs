@@ -21,6 +21,9 @@ pub struct SrConnection {
     sessions: HashMap<SrSessionId, SrSession>,
 }
 
+unsafe impl Send for SrConnection {}
+unsafe impl Sync for SrConnection {}
+
 impl SrConnection {
     pub fn new(options: ConnectionOptions) -> Result<Self, SrError> {
         let mut conn = std::ptr::null_mut();
