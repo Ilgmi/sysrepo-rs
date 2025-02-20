@@ -21,9 +21,9 @@ use sysrepo_sys::{
     sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE, sr_event_t_SR_EV_DONE,
     sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE, sr_free_change_iter,
     sr_get_change_next, sr_get_change_tree_next, sr_get_changes_iter, sr_get_data, sr_get_items,
-    sr_get_node, sr_notif_send, sr_notif_send_tree, sr_release_data, sr_rpc_send, sr_rpc_send_tree,
-    sr_session_ctx_t, sr_session_get_connection, sr_session_stop, sr_set_item_str,
-    sr_subscr_options_t, sr_val_t, timespec,
+    sr_get_node, sr_notif_send, sr_notif_send_tree, sr_release_data, sr_replace_config,
+    sr_rpc_send, sr_rpc_send_tree, sr_session_ctx_t, sr_session_get_connection, sr_session_stop,
+    sr_set_item_str, sr_subscr_options_t, sr_val_t, timespec,
 };
 use yang3::context::Context;
 use yang3::data::{Data, DataTree};
@@ -282,6 +282,26 @@ impl SrSession {
         } else {
             Ok(())
         }
+    }
+
+    pub fn replace_config<'a>(
+        &mut self,
+        node: &DataTree<'a>,
+        module: Option<&str>,
+        timeout: Option<Duration>,
+    ) -> Result<(), SrError> {
+        let module = match module {
+            None => std::ptr::null(),
+            Some(module) => dup_str(module)?,
+        };
+        let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
+        let ret = unsafe { sr_replace_config(self.raw_session, module, node.raw(), timeout_ms) };
+
+        if ret != SrError::Ok as i32 {
+            return Err(SrError::from(ret));
+        }
+
+        Ok(())
     }
 
     /// Apply changes for the session.
@@ -741,13 +761,17 @@ pub struct SrChangeIteratorTree<'a> {
     /// Raw pointer to iter.
     iter: *mut sr_change_iter_t,
     session: &'a SrSession,
-    ctx: ManuallyDrop<Context>,
+    _ctx: ManuallyDrop<Context>,
 }
 
 impl<'a> SrChangeIteratorTree<'a> {
     pub fn from(session: &'a SrSession, iter: *mut sr_change_iter_t) -> Self {
-        let ctx = session.get_context();
-        Self { session, iter, ctx }
+        let _ctx = session.get_context();
+        Self {
+            session,
+            iter,
+            _ctx,
+        }
     }
 
     pub fn iter(&mut self) -> *mut sr_change_iter_t {
