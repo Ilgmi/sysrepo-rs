@@ -1,7 +1,7 @@
-use std::ffi::{CStr, CString};
-
 use crate::common::str_to_cstring;
 use crate::errors::SrError;
+use std::ffi::{CStr, CString};
+use std::fmt::{Display, Formatter};
 use sysrepo_sys as sys_ffi;
 
 #[derive(Debug)]
@@ -25,6 +25,12 @@ pub enum Data {
     UInt32(u32),
     UInt64(u64),
     Union(UnionData),
+}
+
+impl Display for Data {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Debug)]

@@ -1,10 +1,18 @@
+use crate::common::dup_str;
 use crate::enums::SrDatastore;
 use crate::errors::SrError;
 use crate::session::{SrSession, SrSessionId};
+use libc::c_int;
 use std::collections::HashMap;
 use std::mem::ManuallyDrop;
+use std::os::raw::c_char;
+use std::path::Path;
+use std::ptr;
 use sysrepo_sys as ffi_sys;
-use sysrepo_sys::{sr_acquire_context, sr_connect, sr_disconnect, sr_session_start};
+use sysrepo_sys::{
+    sr_acquire_context, sr_connect, sr_disconnect, sr_install_module, sr_remove_module,
+    sr_session_start,
+};
 use yang3::context::Context;
 use yang3::utils::Binding;
 
@@ -84,8 +92,74 @@ impl SrConnection {
         ManuallyDrop::new(ctx)
     }
 
-    pub fn install_module(&self) {
-        // sr_install_module2()
+    pub fn install_module(
+        &self,
+        file: &Path,
+        search_dirs: Option<&str>,
+        features: Option<&[&str]>,
+    ) -> Result<(), SrError> {
+        let path = match file.to_str() {
+            None => return Err(SrError::NotFound),
+            Some(path) => match dup_str(path) {
+                Ok(path) => path,
+                Err(_) => return Err(SrError::InvalArg),
+            },
+        };
+
+        let search_dirs = match search_dirs {
+            None => ptr::null(),
+            Some(dirs) => match dup_str(dirs) {
+                Ok(dirs) => dirs,
+                Err(_) => return Err(SrError::InvalArg),
+            },
+        };
+
+        let features = match features {
+            None => ptr::null_mut(),
+            Some(features) => {
+                let mut f = Vec::new();
+                for feature in features {
+                    match dup_str(feature) {
+                        Ok(feature) => {
+                            f.push(feature as *const c_char);
+                        }
+                        Err(_) => {}
+                    }
+                }
+                f.as_mut_ptr()
+            }
+        };
+
+        let ret = unsafe { sr_install_module(self.raw_connection, path, search_dirs, features) };
+
+        if ret != SrError::Ok as i32 {
+            return Err(SrError::from(ret));
+        }
+
+        Ok(())
+    }
+
+    pub fn remove_module(&self, file: &Path, force: bool) -> Result<(), SrError> {
+        let path = match file.to_str() {
+            None => return Err(SrError::NotFound),
+            Some(path) => match dup_str(path) {
+                Ok(path) => path,
+                Err(_) => return Err(SrError::InvalArg),
+            },
+        };
+
+        let force = match force {
+            true => 1 as c_int,
+            false => 0 as c_int,
+        };
+
+        let ret = unsafe { sr_remove_module(self.raw_connection, path, force) };
+
+        if ret != SrError::Ok as i32 {
+            return Err(SrError::from(ret));
+        }
+
+        Ok(())
     }
 }
 

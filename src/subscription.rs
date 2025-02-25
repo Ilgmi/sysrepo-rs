@@ -136,7 +136,7 @@ impl SrSubscription {
     ) -> Result<Self, SrError>
     where
         F: for<'a> FnMut(
-            &'a SrSession,
+            &'a mut SrSession,
             &'a Context,
             u32,
             &'a str,
@@ -184,7 +184,7 @@ impl SrSubscription {
     ) -> i32
     where
         F: for<'a> FnMut(
-            &'a SrSession,
+            &'a mut SrSession,
             &'a Context,
             u32,
             &'a str,
@@ -205,7 +205,7 @@ impl SrSubscription {
             Some(CStr::from_ptr(request_xpath).to_str().unwrap())
         };
 
-        let session = SrSession::from(sess, false);
+        let mut session = SrSession::from(sess, false);
         let ctx = ManuallyDrop::new(session.get_context());
 
         let node_opt = if *parent == std::ptr::null_mut() {
@@ -215,7 +215,7 @@ impl SrSubscription {
         };
 
         let res = callback(
-            &session,
+            &mut session,
             &ctx,
             sub_id,
             module_name,

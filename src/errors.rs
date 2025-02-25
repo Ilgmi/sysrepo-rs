@@ -1,4 +1,5 @@
 use libc::c_int;
+use std::fmt::{Display, Formatter};
 use sysrepo_sys as ffi_sys;
 
 /// Error.
@@ -20,6 +21,35 @@ pub enum SrError {
     TimeOut = ffi_sys::sr_error_t_SR_ERR_TIME_OUT as isize,
     CallbackFailed = ffi_sys::sr_error_t_SR_ERR_CALLBACK_FAILED as isize,
     CallbackShelve = ffi_sys::sr_error_t_SR_ERR_CALLBACK_SHELVE as isize,
+}
+
+impl SrError {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SrError::Ok => "Ok",
+            SrError::InvalArg => "Invalid Arguments",
+            SrError::Ly => "Lib Yang",
+            SrError::Sys => "Sys",
+            SrError::NoMemory => "No Memory",
+            SrError::NotFound => "Not Found",
+            SrError::Exists => "Exists",
+            SrError::Internal => "Internal",
+            SrError::Unsupported => "Unsupported",
+            SrError::ValidationFailed => "Validation Failed",
+            SrError::OperationFailed => "Operation Failed",
+            SrError::Unauthorized => "Unauthorized",
+            SrError::Locked => "Locked",
+            SrError::TimeOut => "Time Out",
+            SrError::CallbackFailed => "Callback Failed",
+            SrError::CallbackShelve => "Callback Shelve",
+        }
+    }
+}
+
+impl Display for SrError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }
 
 impl From<c_int> for SrError {

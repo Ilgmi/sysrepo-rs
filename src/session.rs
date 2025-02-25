@@ -10,6 +10,7 @@ use libyang3_sys::lyd_node;
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::mem::{zeroed, ManuallyDrop};
+use std::ops::Deref;
 use std::os::raw::c_char;
 use std::time::Duration;
 use std::{fmt, ptr};
@@ -416,7 +417,7 @@ impl SrSession {
     ) -> Result<&mut SrSubscription, SrError>
     where
         F: for<'a> FnMut(
-            &'a SrSession,
+            &'a mut SrSession,
             &'a Context,
             u32,
             &'a str,
