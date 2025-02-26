@@ -673,29 +673,29 @@ impl<'a> SrChangeIterator<'a> {
     }
 }
 
-pub struct CreatedOperation {
+pub struct OperationData {
     pub value: SrValue,
+    pub prev_value: Option<SrValue>,
 }
 
-pub struct ModifiedOperation {
-    pub value: SrValue,
-    pub prev_value: SrValue,
-}
+impl OperationData {
+    pub fn new(value: SrValue, prev_value: Option<SrValue>) -> Self {
+        Self { value, prev_value }
+    }
 
-pub struct DeletedOperation {
-    pub value: SrValue,
-}
-
-pub struct MovedOperation {
-    pub value: SrValue,
-    pub prev_value: SrValue,
+    pub fn without_prev_value(value: SrValue) -> Self {
+        Self {
+            value,
+            prev_value: None,
+        }
+    }
 }
 
 pub enum SrChangeOperation {
-    Created(CreatedOperation),
-    Modified(ModifiedOperation),
-    Deleted(DeletedOperation),
-    Moved(MovedOperation),
+    Created(OperationData),
+    Modified(OperationData),
+    Deleted(OperationData),
+    Moved(OperationData),
 }
 
 impl Iterator for SrChangeIterator<'_> {
@@ -721,24 +721,18 @@ impl Iterator for SrChangeIterator<'_> {
             let op = match SrChangeOper::try_from(oper) {
                 Ok(oper) => match oper {
                     SrChangeOper::Created => {
-                        SrChangeOperation::Created(CreatedOperation { value: new_value })
+                        SrChangeOperation::Created(OperationData::without_prev_value(new_value))
                     }
                     SrChangeOper::Modified => {
                         let old_value = SrValue::from(old_value, false);
-                        SrChangeOperation::Modified(ModifiedOperation {
-                            value: new_value,
-                            prev_value: old_value,
-                        })
+                        SrChangeOperation::Modified(OperationData::new(new_value, Some(old_value)))
                     }
                     SrChangeOper::Deleted => {
-                        SrChangeOperation::Deleted(DeletedOperation { value: new_value })
+                        SrChangeOperation::Deleted(OperationData::without_prev_value(new_value))
                     }
                     SrChangeOper::Moved => {
                         let old_value = SrValue::from(old_value, false);
-                        SrChangeOperation::Moved(MovedOperation {
-                            value: new_value,
-                            prev_value: old_value,
-                        })
+                        SrChangeOperation::Moved(OperationData::new(new_value, Some(old_value)))
                     }
                 },
                 Err(_) => return None,
@@ -780,25 +774,7 @@ impl<'a> SrChangeIteratorTree<'a> {
     }
 }
 
-pub struct CreatedOperationTree {
-    pub node: *const lyd_node,
-    pub prev_value: Option<String>,
-    pub prev_list: Option<String>,
-    pub prev_default_value: bool,
-}
-
-pub struct ModifiedOperationTree {
-    pub node: *const lyd_node,
-    pub prev_value: Option<String>,
-    pub prev_list: Option<String>,
-    pub prev_default_value: bool,
-}
-
-pub struct DeletedOperationTree {
-    pub node: *const lyd_node,
-}
-
-pub struct MovedOperationTree {
+pub struct OperationDataTree {
     pub node: *const lyd_node,
     pub prev_value: Option<String>,
     pub prev_list: Option<String>,
@@ -806,10 +782,10 @@ pub struct MovedOperationTree {
 }
 
 pub enum SrChangeOperationTree {
-    Created(CreatedOperationTree),
-    Modified(ModifiedOperationTree),
-    Deleted(DeletedOperationTree),
-    Moved(MovedOperationTree),
+    Created(OperationDataTree),
+    Modified(OperationDataTree),
+    Deleted(OperationDataTree),
+    Moved(OperationDataTree),
 }
 
 impl<'a> SrChangeOperationTree {
@@ -820,26 +796,17 @@ impl<'a> SrChangeOperationTree {
         prev_list: Option<String>,
         prev_dflt: bool,
     ) -> Self {
+        let operation_data = OperationDataTree {
+            node,
+            prev_value,
+            prev_list,
+            prev_default_value: prev_dflt,
+        };
         match op {
-            SrChangeOper::Created => SrChangeOperationTree::Created(CreatedOperationTree {
-                node,
-                prev_value,
-                prev_list,
-                prev_default_value: prev_dflt,
-            }),
-            SrChangeOper::Modified => SrChangeOperationTree::Modified(ModifiedOperationTree {
-                node,
-                prev_value,
-                prev_list,
-                prev_default_value: prev_dflt,
-            }),
-            SrChangeOper::Deleted => SrChangeOperationTree::Deleted(DeletedOperationTree { node }),
-            SrChangeOper::Moved => SrChangeOperationTree::Moved(MovedOperationTree {
-                node,
-                prev_value,
-                prev_list,
-                prev_default_value: prev_dflt,
-            }),
+            SrChangeOper::Created => SrChangeOperationTree::Created(operation_data),
+            SrChangeOper::Modified => SrChangeOperationTree::Modified(operation_data),
+            SrChangeOper::Deleted => SrChangeOperationTree::Deleted(operation_data),
+            SrChangeOper::Moved => SrChangeOperationTree::Moved(operation_data),
         }
     }
 }

@@ -33,7 +33,7 @@ fn print_change(change_operation: SrChangeOperation) {
             print_val(val);
         }
         SrChangeOperation::Modified(modified) => {
-            let old_val: &sr_val_t = unsafe { &*modified.prev_value.as_raw() };
+            let old_val: &sr_val_t = unsafe { &*modified.prev_value.unwrap().as_raw() };
             let new_val: &sr_val_t = unsafe { &*modified.value.as_raw() };
             print!("MODIFIED: ");
             print_val(&old_val);

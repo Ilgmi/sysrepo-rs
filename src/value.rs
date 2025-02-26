@@ -145,6 +145,15 @@ pub struct SrValue {
 
 impl SrValue {
     pub fn from(value: *mut sys_ffi::sr_val_t, owned: bool) -> Self {
+        if value.is_null() {
+            return Self {
+                sr_value: value,
+                data: Data::Empty,
+                val_type: ValType::Unknown,
+                owned,
+            };
+        }
+
         let val_type: ValType = unsafe { (*value).type_.into() };
         let data = match val_type {
             ValType::Unknown => Data::String(String::from("(sr_val_type_t_SR_UNKNOWN_T instance)")),
