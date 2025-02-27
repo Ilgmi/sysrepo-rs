@@ -8,7 +8,7 @@ use crate::values::SrValues;
 use libc::c_int;
 use libyang3_sys::lyd_node;
 use std::collections::HashMap;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::mem::{zeroed, ManuallyDrop};
 use std::ops::Deref;
 use std::os::raw::c_char;
@@ -606,6 +606,40 @@ impl SrSession {
         } else {
             None
         }
+    }
+
+    pub fn get_key_value(
+        &self,
+        xpath: &str,
+        node_name: &str,
+        key_name: &str,
+    ) -> Result<String, SrError> {
+        let xpath = CString::new(xpath).unwrap();
+        let node_name = CString::new(node_name).unwrap();
+        let key_name = CString::new(key_name).unwrap();
+
+        let mut ctx: sysrepo_sys::sr_xpath_ctx_s = unsafe {
+            sysrepo_sys::sr_xpath_ctx_s {
+                begining: std::ptr::null_mut(),
+                current_node: std::ptr::null_mut(),
+                replaced_position: std::ptr::null_mut(),
+                replaced_char: 0,
+            }
+        };
+
+        let ret = unsafe {
+            sysrepo_sys::sr_xpath_key_value(
+                xpath.as_ptr() as _,
+                node_name.as_ptr(),
+                key_name.as_ptr(),
+                &mut ctx,
+            )
+        };
+        if ret.is_null() {
+            return Err(SrError::NotFound);
+        }
+
+        unsafe { Ok(CStr::from_ptr(ret).to_str().unwrap().to_string()) }
     }
 }
 

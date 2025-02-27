@@ -49,7 +49,7 @@ pub enum UnionData {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum ValType {
+pub enum ValType {
     Unknown = sys_ffi::sr_val_type_t_SR_UNKNOWN_T as isize,
     List = sys_ffi::sr_val_type_t_SR_LIST_T as isize,
     Container = sys_ffi::sr_val_type_t_SR_CONTAINER_T as isize,
@@ -344,8 +344,12 @@ impl SrValue {
     }
 
     pub fn xpath(&self) -> String {
-        let xpath = unsafe { CString::from_raw((*self.sr_value).xpath) };
-        String::from(xpath.to_string_lossy())
+        let xpath = unsafe { CStr::from_ptr((*self.sr_value).xpath) };
+        xpath.to_str().unwrap().to_string()
+    }
+
+    pub fn value_type(&self) -> &ValType {
+        &self.val_type
     }
 
     pub fn as_raw(&self) -> *mut sys_ffi::sr_val_t {
