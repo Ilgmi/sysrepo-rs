@@ -1,5 +1,5 @@
 use crate::common::dup_str;
-use crate::enums::{DefaultOperation, SrNotifType};
+use crate::enums::{DefaultOperation, SrEditFlag, SrNotifType};
 use crate::errors::SrError;
 use crate::str_to_cstring;
 use crate::subscription::{SrSubscription, SrSubscriptionId};
@@ -18,8 +18,8 @@ use sysrepo_sys as ffi_sys;
 use sysrepo_sys::{
     sr_acquire_context, sr_apply_changes, sr_change_iter_t, sr_change_oper_t,
     sr_change_oper_t_SR_OP_CREATED, sr_change_oper_t_SR_OP_DELETED,
-    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t, sr_edit_batch,
-    sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE, sr_event_t_SR_EV_DONE,
+    sr_change_oper_t_SR_OP_MODIFIED, sr_change_oper_t_SR_OP_MOVED, sr_data_t, sr_delete_item,
+    sr_edit_batch, sr_event_t_SR_EV_ABORT, sr_event_t_SR_EV_CHANGE, sr_event_t_SR_EV_DONE,
     sr_event_t_SR_EV_ENABLED, sr_event_t_SR_EV_RPC, sr_event_t_SR_EV_UPDATE, sr_free_change_iter,
     sr_get_change_next, sr_get_change_tree_next, sr_get_changes_iter, sr_get_data, sr_get_items,
     sr_get_node, sr_notif_send, sr_notif_send_tree, sr_release_data, sr_replace_config,
@@ -283,6 +283,18 @@ impl SrSession {
         } else {
             Ok(())
         }
+    }
+
+    pub fn remove_item(&mut self, path: &str, option: SrEditFlag) -> Result<(), SrError> {
+        let path = CString::new(path).map_err(|_| SrError::Internal)?;
+        unsafe {
+            sr_delete_item(
+                self.raw_session,
+                path.as_ptr(),
+                option as sysrepo_sys::sr_edit_options_t,
+            )
+        };
+        Ok(())
     }
 
     pub fn replace_config<'a>(
