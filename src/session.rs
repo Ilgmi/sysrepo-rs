@@ -287,14 +287,19 @@ impl SrSession {
 
     pub fn remove_item(&mut self, path: &str, option: SrEditFlag) -> Result<(), SrError> {
         let path = CString::new(path).map_err(|_| SrError::Internal)?;
-        unsafe {
+        let ret = unsafe {
             sr_delete_item(
                 self.raw_session,
                 path.as_ptr(),
                 option as sysrepo_sys::sr_edit_options_t,
             )
         };
-        Ok(())
+
+        if ret != SrError::Ok as i32 {
+            Err(SrError::Internal)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn replace_config<'a>(
