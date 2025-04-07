@@ -20,7 +20,7 @@ use yang3::data::{Data, DataTree};
 use yang3::utils::Binding;
 
 /// Event.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub enum SrEvent {
     Update = ffi_sys::sr_event_t_SR_EV_UPDATE as isize,
     Change = ffi_sys::sr_event_t_SR_EV_CHANGE as isize,
@@ -35,12 +35,12 @@ impl TryFrom<u32> for SrEvent {
 
     fn try_from(t: u32) -> Result<Self, Self::Error> {
         match t {
-            sr_event_t_SR_EV_UPDATE => Ok(SrEvent::Update),
-            sr_event_t_SR_EV_CHANGE => Ok(SrEvent::Change),
-            sr_event_t_SR_EV_DONE => Ok(SrEvent::Done),
-            sr_event_t_SR_EV_ABORT => Ok(SrEvent::Abort),
-            sr_event_t_SR_EV_ENABLED => Ok(SrEvent::Enabled),
-            sr_event_t_SR_EV_RPC => Ok(SrEvent::Rpc),
+            ffi_sys::sr_event_t_SR_EV_UPDATE => Ok(SrEvent::Update),
+            ffi_sys::sr_event_t_SR_EV_CHANGE => Ok(SrEvent::Change),
+            ffi_sys::sr_event_t_SR_EV_DONE => Ok(SrEvent::Done),
+            ffi_sys::sr_event_t_SR_EV_ABORT => Ok(SrEvent::Abort),
+            ffi_sys::sr_event_t_SR_EV_ENABLED => Ok(SrEvent::Enabled),
+            ffi_sys::sr_event_t_SR_EV_RPC => Ok(SrEvent::Rpc),
             _ => Err("Invalid SrEvent"),
         }
     }
@@ -109,14 +109,14 @@ impl SrSession {
     }
 
     /// Insert subscription.
-    pub fn insert_subscription(&mut self, subscription: SrSubscription) -> SrSubscriptionId {
+    fn insert_subscription(&mut self, subscription: SrSubscription) -> SrSubscriptionId {
         let id = subscription.id();
         self.subscriptions.insert(id, subscription);
         id
     }
 
     /// Remove subscription.
-    pub fn remove_subscription(&mut self, subscription: &SrSubscription) {
+    fn remove_subscription(&mut self, subscription: &SrSubscription) {
         let id = subscription.id();
         self.subscriptions.remove(&id);
     }
@@ -911,8 +911,10 @@ impl<'a> Iterator for SrChangeIteratorTree<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::connection::{ConnectionOptions, SrConnection};
     use crate::enums::SrDatastore;
+    use crate::session::SrEvent;
 
     #[test]
     fn get_session_successful() {
@@ -921,5 +923,23 @@ mod tests {
         let session = connection.start_session(SrDatastore::Running);
 
         assert!(session.is_ok());
+    }
+
+    #[test]
+    fn try_from_u32_to_SrEvent_successful() {
+        let values: Vec<(u32, Result<SrEvent, &'static str>)> = vec![
+            (ffi_sys::sr_event_t_SR_EV_UPDATE, Ok(SrEvent::Update)),
+            (ffi_sys::sr_event_t_SR_EV_CHANGE, Ok(SrEvent::Change)),
+            (ffi_sys::sr_event_t_SR_EV_DONE, Ok(SrEvent::Done)),
+            (ffi_sys::sr_event_t_SR_EV_ABORT, Ok(SrEvent::Abort)),
+            (ffi_sys::sr_event_t_SR_EV_ENABLED, Ok(SrEvent::Enabled)),
+            (ffi_sys::sr_event_t_SR_EV_RPC, Ok(SrEvent::Rpc)),
+            (99, Err("Invalid SrEvent")),
+        ];
+
+        for (from, expected_result) in values {
+            let result = SrEvent::try_from(from);
+            assert_eq!(result, expected_result);
+        }
     }
 }

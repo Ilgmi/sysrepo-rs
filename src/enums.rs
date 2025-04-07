@@ -68,7 +68,7 @@ pub enum SrSubcribeFlag {
 }
 
 /// Notification Type.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub enum SrNotifType {
     Realtime = ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REALTIME as isize,
     Replay = ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY as isize,
@@ -82,8 +82,8 @@ pub enum SrNotifType {
 impl TryFrom<u32> for SrNotifType {
     type Error = &'static str;
 
-    fn try_from(t: u32) -> Result<Self, Self::Error> {
-        match t {
+    fn try_from(event_type: u32) -> Result<Self, Self::Error> {
+        match event_type {
             ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REALTIME => Ok(SrNotifType::Realtime),
             ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY => Ok(SrNotifType::Replay),
             ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY_COMPLETE => {
@@ -120,6 +120,51 @@ impl DefaultOperation {
             DefaultOperation::Merge => "merge",
             DefaultOperation::Replace => "replace",
             DefaultOperation::None => "none",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn try_from_u32_to_SrNotifType_successful() {
+        let values: Vec<(u32, Result<SrNotifType, &'static str>)> = vec![
+            (
+                ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REALTIME,
+                Ok(SrNotifType::Realtime),
+            ),
+            (
+                ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY,
+                Ok(SrNotifType::Replay),
+            ),
+            (
+                ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY_COMPLETE,
+                Ok(SrNotifType::ReplayComplete),
+            ),
+            (
+                ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_TERMINATED,
+                Ok(SrNotifType::Terminated),
+            ),
+            (
+                ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_MODIFIED,
+                Ok(SrNotifType::Modified),
+            ),
+            (
+                ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_SUSPENDED,
+                Ok(SrNotifType::Suspended),
+            ),
+            (
+                ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_RESUMED,
+                Ok(SrNotifType::Resumed),
+            ),
+            (99, Err("Invalid SrNotifType")),
+        ];
+
+        for (from, expected_result) in values {
+            let result = SrNotifType::try_from(from);
+            assert_eq!(result, expected_result);
         }
     }
 }
