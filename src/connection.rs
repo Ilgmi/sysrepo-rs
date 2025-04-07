@@ -1,11 +1,10 @@
-use crate::common::dup_str;
 use crate::enums::SrDatastore;
 use crate::errors::SrError;
 use crate::session::{SrSession, SrSessionId};
 use libc::c_int;
 use std::collections::HashMap;
+use std::ffi::CString;
 use std::mem::ManuallyDrop;
-use std::os::raw::c_char;
 use std::path::Path;
 use std::ptr;
 use sysrepo_sys as ffi_sys;
@@ -57,7 +56,7 @@ impl SrConnection {
     }
 
     /// Add session to map.
-    pub fn insert_session(&mut self, id: SrSessionId, sess: SrSession) {
+    fn insert_session(&mut self, id: SrSessionId, sess: SrSession) {
         self.sessions.insert(id, sess);
     }
 
@@ -100,37 +99,43 @@ impl SrConnection {
     ) -> Result<(), SrError> {
         let path = match file.to_str() {
             None => return Err(SrError::NotFound),
-            Some(path) => match dup_str(path) {
+            Some(path) => match CString::new(path) {
                 Ok(path) => path,
                 Err(_) => return Err(SrError::InvalArg),
             },
         };
 
         let search_dirs = match search_dirs {
-            None => ptr::null(),
-            Some(dirs) => match dup_str(dirs) {
-                Ok(dirs) => dirs,
+            None => None,
+            Some(dirs) => match CString::new(dirs) {
+                Ok(dirs) => Some(dirs),
                 Err(_) => return Err(SrError::InvalArg),
             },
         };
 
-        let features = match features {
-            None => ptr::null_mut(),
-            Some(features) => {
-                let mut f = Vec::new();
-                for feature in features {
-                    match dup_str(feature) {
-                        Ok(feature) => {
-                            f.push(feature as *const c_char);
-                        }
-                        Err(_) => {}
-                    }
-                }
-                f.as_mut_ptr()
-            }
+        let search_dirs = match search_dirs {
+            None => ptr::null(),
+            Some(dirs) => dirs.as_ptr(),
         };
 
-        let ret = unsafe { sr_install_module(self.raw_connection, path, search_dirs, features) };
+        let features_cstr = match features {
+            None => {
+                vec![]
+            }
+            Some(features) => features.iter().map(|x| CString::new(*x).unwrap()).collect(),
+        };
+
+        let mut features_ptr = features_cstr.iter().map(|x| x.as_ptr()).collect::<Vec<_>>();
+        features_ptr.push(ptr::null());
+
+        let ret = unsafe {
+            sr_install_module(
+                self.raw_connection,
+                path.as_ptr(),
+                search_dirs,
+                features_ptr.as_mut_ptr(),
+            )
+        };
 
         if ret != SrError::Ok as i32 {
             return Err(SrError::from(ret));
@@ -139,21 +144,15 @@ impl SrConnection {
         Ok(())
     }
 
-    pub fn remove_module(&self, file: &Path, force: bool) -> Result<(), SrError> {
-        let path = match file.to_str() {
-            None => return Err(SrError::NotFound),
-            Some(path) => match dup_str(path) {
-                Ok(path) => path,
-                Err(_) => return Err(SrError::InvalArg),
-            },
-        };
+    pub fn remove_module(&self, module_name: &str, force: bool) -> Result<(), SrError> {
+        let path = CString::new(module_name).or_else(|_| Err(SrError::NotFound))?;
 
         let force = match force {
             true => 1 as c_int,
             false => 0 as c_int,
         };
 
-        let ret = unsafe { sr_remove_module(self.raw_connection, path, force) };
+        let ret = unsafe { sr_remove_module(self.raw_connection, path.as_ptr(), force) };
 
         if ret != SrError::Ok as i32 {
             return Err(SrError::from(ret));
@@ -166,18 +165,68 @@ impl SrConnection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::enums::SrLogLevel;
+    use crate::log_stderr;
     #[test]
     fn create_new_connection_successful() {
-        let c = SrConnection::new(ConnectionOptions::Datastore_Running);
-        assert!(c.is_ok());
+        let connection = SrConnection::new(ConnectionOptions::Datastore_Running);
+        assert!(connection.is_ok());
     }
 
     #[test]
     fn creat_new_session_successful() {
-        let c = SrConnection::new(ConnectionOptions::Datastore_Running);
-        assert!(c.is_ok());
-        let mut c = c.unwrap();
+        let connection = SrConnection::new(ConnectionOptions::Datastore_Running);
+        assert!(connection.is_ok());
+        let mut c = connection.unwrap();
         let session = c.start_session(SrDatastore::Running);
         assert!(session.is_ok());
+    }
+
+    #[test]
+    fn install_and_remove_module_successful() {
+        log_stderr(SrLogLevel::Error);
+        let name = "install-test";
+        let bind = Path::new("./assets/yang/").join(format!("{name}.yang"));
+        let module_path = bind.as_path();
+        assert!(module_path.exists());
+
+        let connection =
+            SrConnection::new(ConnectionOptions::Datastore_Running).expect("Should be Ok");
+        let install = connection.install_module(module_path, None, None);
+        assert!(install.is_ok());
+        let remove = connection.remove_module(name, false);
+        assert!(remove.is_ok());
+    }
+
+    #[test]
+    fn install_and_remove_module_with_feature_and_import_successful() {
+        // Turn logging on.
+        log_stderr(SrLogLevel::Error);
+
+        let modules = vec![
+            ("sub", None),
+            ("install-import-test", Some(vec!["sub-feature"])),
+        ];
+        let yang = "./assets/yang/";
+        let connection =
+            SrConnection::new(ConnectionOptions::Datastore_Running).expect("Should be Ok");
+        for (module_name, features) in &modules {
+            let bind = Path::new(yang).join(format!("{module_name}.yang"));
+            let module_path = bind.as_path();
+            assert!(module_path.exists());
+
+            let features = match &features {
+                None => None,
+                Some(features) => Some(&features[..]),
+            };
+
+            let install = connection.install_module(module_path, Some(yang), features);
+            assert!(install.is_ok(), "Could not install module {module_name}");
+        }
+
+        for (module_name, features) in modules.iter().rev() {
+            let remove = connection.remove_module(module_name, false);
+            assert!(remove.is_ok());
+        }
     }
 }
