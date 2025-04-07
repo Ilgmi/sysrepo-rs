@@ -61,7 +61,7 @@ impl SrConnection {
     }
 
     /// Add session to map.
-    pub fn remove_session(&mut self, id: &SrSessionId) {
+    fn remove_session(&mut self, id: &SrSessionId) {
         self.sessions.remove(id);
     }
 
@@ -174,12 +174,21 @@ mod tests {
     }
 
     #[test]
-    fn creat_new_session_successful() {
+    fn create_new_session_successful() {
         let connection = SrConnection::new(ConnectionOptions::Datastore_Running);
         assert!(connection.is_ok());
         let mut c = connection.unwrap();
         let session = c.start_session(SrDatastore::Running);
         assert!(session.is_ok());
+    }
+
+    #[test]
+    fn get_contextsuccessful() {
+        let connection =
+            SrConnection::new(ConnectionOptions::Datastore_Running).expect("connection failed");
+        let ctx = connection.get_context();
+
+        assert!(true)
     }
 
     #[test]
