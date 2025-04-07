@@ -14,12 +14,12 @@ pub mod values;
 use crate::common::str_to_cstring;
 use crate::enums::SrLogLevel;
 use crate::errors::SrError;
-use sysrepo_sys::*;
+use sysrepo_sys as ffi_sys;
 
 /// Set Log Stderr.
 pub fn log_stderr(log_level: SrLogLevel) {
     unsafe {
-        sr_log_stderr(log_level as u32);
+        ffi_sys::sr_log_stderr(log_level as u32);
     }
 }
 
@@ -27,7 +27,7 @@ pub fn log_stderr(log_level: SrLogLevel) {
 pub fn log_syslog(app_name: &str, log_level: SrLogLevel) -> Result<(), SrError> {
     let app_name = str_to_cstring(app_name)?;
     unsafe {
-        sr_log_syslog(app_name.as_ptr(), log_level as u32);
+        ffi_sys::sr_log_syslog(app_name.as_ptr(), log_level as u32);
     }
 
     Ok(())

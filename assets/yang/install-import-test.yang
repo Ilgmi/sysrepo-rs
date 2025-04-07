@@ -1,0 +1,22 @@
+module install-import-test {
+    namespace "urn:install-import-test";
+    prefix iit;
+
+    import sub{
+        prefix sub;
+    }
+
+    feature sub-feature {
+
+    }
+
+    container cont {
+
+        if-feature "sub-feature";
+
+        leaf l {
+            type string;
+        }
+    }
+
+}

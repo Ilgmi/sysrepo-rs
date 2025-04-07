@@ -2,7 +2,6 @@ use crate::value::{Data, SrValue};
 
 use crate::errors::SrError;
 use sysrepo_sys as ffi_sys;
-use sysrepo_sys::{sr_free_values, sr_val_t};
 
 pub struct SrValues {
     raw_values: *mut ffi_sys::sr_val_t,
@@ -67,7 +66,7 @@ impl SrValues {
         (self.raw_values, self.len)
     }
 
-    pub fn as_raw_slice(&self) -> &[sr_val_t] {
+    pub fn as_raw_slice(&self) -> &[ffi_sys::sr_val_t] {
         unsafe { std::slice::from_raw_parts(self.raw_values, self.len) }
     }
 }
@@ -75,7 +74,7 @@ impl SrValues {
 impl Drop for SrValues {
     fn drop(&mut self) {
         if self.owned {
-            unsafe { sr_free_values(self.raw_values, self.len) }
+            unsafe { ffi_sys::sr_free_values(self.raw_values, self.len) }
         }
     }
 }

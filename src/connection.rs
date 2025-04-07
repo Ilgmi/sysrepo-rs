@@ -8,10 +8,6 @@ use std::mem::ManuallyDrop;
 use std::path::Path;
 use std::ptr;
 use sysrepo_sys as ffi_sys;
-use sysrepo_sys::{
-    sr_acquire_context, sr_connect, sr_disconnect, sr_install_module, sr_remove_module,
-    sr_session_start,
-};
 use yang3::context::Context;
 use yang3::utils::Binding;
 
@@ -36,7 +32,7 @@ impl SrConnection {
         let mut conn = std::ptr::null_mut();
         let options = options as ffi_sys::sr_conn_options_t;
 
-        let rc = unsafe { sr_connect(options, &mut conn) };
+        let rc = unsafe { ffi_sys::sr_connect(options, &mut conn) };
         if rc != SrError::Ok as i32 {
             Err(SrError::from(rc))
         } else {
@@ -50,7 +46,7 @@ impl SrConnection {
     /// Disconnect.
     pub fn disconnect(&mut self) {
         unsafe {
-            sr_disconnect(self.raw_connection);
+            ffi_sys::sr_disconnect(self.raw_connection);
         }
         self.raw_connection = std::ptr::null_mut();
     }
@@ -72,7 +68,7 @@ impl SrConnection {
 
     pub fn start_session(&mut self, ds: SrDatastore) -> Result<&mut SrSession, SrError> {
         let mut sess = std::ptr::null_mut();
-        let rc = unsafe { sr_session_start(self.raw_connection, ds as u32, &mut sess) };
+        let rc = unsafe { ffi_sys::sr_session_start(self.raw_connection, ds as u32, &mut sess) };
         if rc != SrError::Ok as i32 {
             Err(SrError::from(rc))
         } else {
@@ -85,7 +81,7 @@ impl SrConnection {
     /// Returns the libyang3 context associated with this Session
     pub fn get_context(&self) -> ManuallyDrop<Context> {
         let ctx = unsafe {
-            let ctx = sr_acquire_context(self.raw_connection) as *mut libyang3_sys::ly_ctx;
+            let ctx = ffi_sys::sr_acquire_context(self.raw_connection) as *mut libyang3_sys::ly_ctx;
             Context::from_raw(&(), ctx)
         };
         ManuallyDrop::new(ctx)
@@ -129,7 +125,7 @@ impl SrConnection {
         features_ptr.push(ptr::null());
 
         let ret = unsafe {
-            sr_install_module(
+            ffi_sys::sr_install_module(
                 self.raw_connection,
                 path.as_ptr(),
                 search_dirs,
@@ -152,7 +148,7 @@ impl SrConnection {
             false => 0 as c_int,
         };
 
-        let ret = unsafe { sr_remove_module(self.raw_connection, path.as_ptr(), force) };
+        let ret = unsafe { ffi_sys::sr_remove_module(self.raw_connection, path.as_ptr(), force) };
 
         if ret != SrError::Ok as i32 {
             return Err(SrError::from(ret));
