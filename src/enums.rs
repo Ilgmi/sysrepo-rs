@@ -1,4 +1,33 @@
+use bitflags::bitflags;
 use sysrepo_sys as ffi_sys;
+
+bitflags! {
+
+    /// Flags used to override default data get behaviour on SR_DS_OPERATIONAL.
+
+    pub struct SrGetOptions:  u32 {
+        /// No special behaviour.
+       const SR_OPER_DEFAULT = 0x00;
+        /// Return only configuration data.
+       const SR_OPER_NO_STATE = 0x01;
+        /// Return only state data. If there are some state subtrees with configuration parents, these are also returned (with keys if lists).
+       const SR_OPER_NO_CONFIG = 0x02;
+        /// Return only stored operational data (push), do not call subscriber callbacks (pull).
+       const SR_OPER_NO_SUBS = 0x04;
+        /// Do not merge with stored operational data (push).
+       const SR_OPER_NO_STORED = 0x08;
+        /// Return data with their origin attributes. Nodes without one inherit the origin from parents.
+       const SR_OPER_WITH_ORIGIN = 0x10;
+        /// Do not use cached oper data from operational poll subscriptions even if available.
+       const SR_OPER_NO_POLL_CACHED = 0x20;
+        /// Do not use connection running datastore cache data even if the connection supports it, may prevent some dead locks.
+       const SR_OPER_NO_RUN_CACHED = 0x40;
+
+        /// Do not apply the filter and return the whole "base" data which the filter would normally be applied on. The filter is used only when deciding what data to retrieve from subscribers and similar optimization cases.
+       const SR_GET_NO_FILTER = 0x010000;
+    }
+
+}
 
 /// Log level.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]

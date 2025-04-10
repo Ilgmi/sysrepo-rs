@@ -654,6 +654,7 @@ mod tests {
 
     mod test_oper_get_subscribe {
         use super::*;
+        use crate::enums::SrGetOptions;
         use yang3::data::{DataDiffFlags, NewValueCreationOptions};
 
         #[test]
@@ -690,7 +691,13 @@ mod tests {
             );
             assert!(sub_id.is_ok());
             let ctx = session.get_context();
-            let _res = session.get_data(&ctx, "/examples:stats", 0, None, 0);
+            let _res = session.get_data(
+                &ctx,
+                "/examples:stats",
+                0,
+                None,
+                SrGetOptions::SR_OPER_DEFAULT,
+            );
 
             let mut expected_node = DataTree::new(&ctx);
             let _ref = expected_node

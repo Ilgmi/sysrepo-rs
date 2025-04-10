@@ -15,6 +15,11 @@ pub struct Setup {
 impl Setup {
     pub fn setup_test_module() -> Self {
         let connection = SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
+        match connection.remove_module("test_module", true) {
+            Ok(_) => (),
+            Err(e) => println!("Setup Test Module: {e}"),
+        }
+
         connection
             .install_module(Path::new(TEST_MODULE), None, None)
             .unwrap();
@@ -22,15 +27,6 @@ impl Setup {
         Self {
             connection,
             modules,
-        }
-    }
-}
-impl Drop for Setup {
-    fn drop(&mut self) {
-        for module in &self.modules {
-            if let Err(err) = self.connection.remove_module(&module, true) {
-                println!("failed to remove {}: {}", module, err);
-            }
         }
     }
 }

@@ -2,21 +2,21 @@ use crate::common::Setup;
 use std::fmt::{Debug, Display};
 use std::time::Duration;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
-use sysrepo::enums::{SrDatastore, SrEditFlag, SrLogLevel};
+use sysrepo::enums::{SrDatastore, SrEditFlag, SrGetOptions, SrLogLevel};
 use sysrepo::errors::SrError;
 use sysrepo::log_stderr;
-use yang3::data::Data;
+use yang3::data::{Data, DataFormat, DataPrinterFlags};
 use yang3::schema::{DataValue, SchemaPathFormat};
 
 mod common;
+
+const LEAF: &str = "/test_module:testInt32";
 
 #[test]
 fn test_data_manipulation() {
     // Turn logging on.
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
-
-    let leaf = "/examples:testInt32";
 
     let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
     let session = connection
@@ -28,7 +28,7 @@ fn test_data_manipulation() {
         .copy_config(SrDatastore::Startup, None, Duration::from_secs(3))
         .expect("Copy Startup to Running");
 
-    let data = session.get_data(&ctx, leaf, None, None, 0);
+    let data = session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
     assert!(data.is_err());
 
     match data {
@@ -40,98 +40,112 @@ fn test_data_manipulation() {
         }
     }
 
-    assert!(session.set_item_str(leaf, Some("123"), None, 0).is_ok());
+    assert!(session.set_item_str(LEAF, Some("123"), None, 0).is_ok());
     assert!(session.apply_changes(None).is_ok());
 
     let data = session
-        .get_data(&ctx, leaf, None, None, 0)
+        .get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT)
         .expect("Get Data");
     assert_eq!(
         data.reference().unwrap().value(),
         Some(DataValue::Int32(123))
     );
 
-    let node = session.get_node(&ctx, leaf, None);
+    let node = session.get_node(&ctx, LEAF, None);
     assert!(node.is_ok());
     assert_eq!(
         node.unwrap().reference().unwrap().value(),
         Some(DataValue::Int32(123))
     );
 
-    assert!(session.set_item_str(leaf, Some("420"), None, 0).is_ok());
+    assert!(session.set_item_str(LEAF, Some("420"), None, 0).is_ok());
     assert!(session.apply_changes(None).is_ok());
 
-    let data = session.get_data(&ctx, leaf, None, None, 0);
+    let data = session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
     assert!(data.is_ok());
     assert_eq!(
         data.unwrap().reference().unwrap().value(),
         Some(DataValue::Int32(420))
     );
 
-    assert!(session.remove_item(leaf, SrEditFlag::Default).is_ok());
+    assert!(session.remove_item(LEAF, SrEditFlag::Default).is_ok());
     assert!(session.apply_changes(None).is_ok());
 
-    let data = session.get_data(&ctx, leaf, None, None, 0);
+    let data = session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
     assert!(data.is_err_and(|e| e == SrError::NotFound));
 
-    assert!(session.set_item_str(leaf, Some("420"), None, 0).is_ok());
+    assert!(session.set_item_str(LEAF, Some("420"), None, 0).is_ok());
     assert!(session.discard_changes().is_ok());
 
-    let data = session.get_data(&ctx, leaf, None, None, 0);
+    let data = session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
     assert!(data.is_err_and(|e| e == SrError::NotFound));
 
     assert!(session
-        .set_item_str("/examples:cont/l", Some("test 123"), None, 0)
+        .set_item_str("/test_module:cont/l", Some("test 123"), None, 0)
         .is_ok());
-    let data = session.get_data(&ctx, "/examples:cont/l", None, None, 0);
+    let data = session.get_data(
+        &ctx,
+        "/test_module:cont/l",
+        0,
+        None,
+        SrGetOptions::SR_OPER_DEFAULT,
+    );
     assert!(data.is_ok());
     let data = data.unwrap();
     let data = data.reference().unwrap();
 
-    assert_eq!(data.path(), "/examples:cont");
-    let val = data.find_path("/examples:cont/l", false);
+    assert_eq!(data.path(), "/test_module:cont");
+    let val = data.find_path("/test_module:cont/l", false);
     assert!(val.is_ok());
     let val = val.unwrap();
 
     assert_eq!(val.value(), Some(DataValue::Other("test 123".to_string())));
 
-    let node = session.get_node(&ctx, "/examples:cont/l", None);
+    let node = session.get_node(&ctx, "/test_module:cont/l", None);
     assert!(node.is_ok());
     let node = node.unwrap();
     let node_ref = node.reference().unwrap();
-    assert_eq!(node_ref.path(), "/examples:l");
+    assert_eq!(node_ref.path(), "/test_module:l");
     assert_eq!(
         node_ref.schema().path(SchemaPathFormat::DATA),
-        "/examples:cont/l"
+        "/test_module:cont/l"
     );
     assert_eq!(
         node_ref.value(),
         Some(DataValue::Other("test 123".to_string()))
     );
 
-    let node = session.get_node(&ctx, "/examples:cont", None);
+    let node = session.get_node(&ctx, "/test_module:cont", None);
     assert!(node.is_ok());
     let node = node.unwrap();
     let node_ref = node.reference().unwrap();
-    assert_eq!(node_ref.path(), "/examples:cont");
+    assert_eq!(node_ref.path(), "/test_module:cont");
     assert!(node_ref.value().is_none());
 
     session.discard_changes().unwrap();
 
     assert!(session
-        .set_item_str("/examples:not-existing", Some("test 123"), None, 0)
+        .set_item_str("/test_module:not-existing", Some("test 123"), None, 0)
         .is_err_and(|e| e == SrError::Ly));
     assert!(session
-        .get_data(&ctx, "/examples:not-existing", None, None, 0)
+        .get_data(
+            &ctx,
+            "/test_module:not-existing",
+            0,
+            None,
+            SrGetOptions::SR_OPER_DEFAULT
+        )
         .is_err_and(|e| e == SrError::NotFound));
     assert!(session
-        .get_node(&ctx, "/examples:not-existing", None)
+        .get_node(&ctx, "/test_module:not-existing", None)
         .is_err_and(|e| e == SrError::NotFound));
 }
 
 #[test]
-fn test_get_data() {
+fn test_get_data_max_depth() {
     log_stderr(SrLogLevel::Error);
+    let _setup = Setup::setup_test_module();
+
     let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
     let session = connection
         .start_session(SrDatastore::Running)
@@ -140,13 +154,210 @@ fn test_get_data() {
 
     session
         .set_item_str(
-            "/examples:cont/test-list[name='test']/val",
+            "/test_module:cont/sub/test-list[name='test']/val",
             Some("test"),
             None,
             0,
         )
         .unwrap();
     session
-        .set_item_str("/examples:cont/test-list[name='nop']", None, None, 0)
+        .set_item_str("/test_module:cont/sub/test-list[name='nop']", None, None, 0)
         .unwrap();
+
+    let data = session
+        .get_data(
+            &ctx,
+            "/test_module:cont",
+            0,
+            None,
+            SrGetOptions::SR_OPER_DEFAULT,
+        )
+        .expect("Data should exist");
+    let str = data
+        .print_string(DataFormat::JSON, DataPrinterFlags::KEEP_EMPTY_CONT)
+        .expect("Expect to print");
+    assert_eq!(
+        str,
+        r#"{
+  "test_module:cont": {
+    "sub": {
+      "test-list": [
+        {
+          "name": "nop"
+        },
+        {
+          "name": "test",
+          "val": "test"
+        }
+      ]
+    }
+  }
 }
+"#
+    );
+    let data = session
+        .get_data(
+            &ctx,
+            "/test_module:cont",
+            1,
+            None,
+            SrGetOptions::SR_OPER_DEFAULT,
+        )
+        .unwrap();
+    let str = data
+        .print_string(DataFormat::JSON, DataPrinterFlags::KEEP_EMPTY_CONT)
+        .expect("Expect to print");
+    assert_eq!(
+        str,
+        r#"{
+  "test_module:cont": {
+    "sub": {}
+  }
+}
+"#
+    );
+
+    let data = session
+        .get_data(
+            &ctx,
+            "/test_module:cont",
+            2,
+            None,
+            SrGetOptions::SR_OPER_DEFAULT,
+        )
+        .unwrap();
+    let str = data
+        .print_string(DataFormat::JSON, DataPrinterFlags::KEEP_EMPTY_CONT)
+        .expect("Expect to print");
+    assert_eq!(
+        str,
+        r#"{
+  "test_module:cont": {
+    "sub": {
+      "test-list": [
+        {
+          "name": "nop"
+        },
+        {
+          "name": "test"
+        }
+      ]
+    }
+  }
+}
+"#
+    );
+
+    let data = session
+        .get_data(
+            &ctx,
+            "/test_module:cont",
+            3,
+            None,
+            SrGetOptions::SR_OPER_DEFAULT,
+        )
+        .unwrap();
+    let str = data
+        .print_string(DataFormat::JSON, DataPrinterFlags::KEEP_EMPTY_CONT)
+        .expect("Expect to print");
+    assert_eq!(
+        str,
+        r#"{
+  "test_module:cont": {
+    "sub": {
+      "test-list": [
+        {
+          "name": "nop"
+        },
+        {
+          "name": "test",
+          "val": "test"
+        }
+      ]
+    }
+  }
+}
+"#
+    );
+
+    let data = session
+        .get_data(
+            &ctx,
+            "/test_module:cont",
+            4,
+            None,
+            SrGetOptions::SR_OPER_DEFAULT,
+        )
+        .unwrap();
+    let str = data
+        .print_string(DataFormat::JSON, DataPrinterFlags::KEEP_EMPTY_CONT)
+        .expect("Expect to print");
+    assert_eq!(
+        str,
+        r#"{
+  "test_module:cont": {
+    "sub": {
+      "test-list": [
+        {
+          "name": "nop"
+        },
+        {
+          "name": "test",
+          "val": "test"
+        }
+      ]
+    }
+  }
+}
+"#
+    );
+}
+
+#[test]
+fn test_get_data_options_for_operational_DS() {
+    log_stderr(SrLogLevel::Error);
+    let _setup = Setup::setup_test_module();
+
+    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let session = connection
+        .start_session(SrDatastore::Running)
+        .expect("session");
+    let ctx = session.get_context();
+
+    session
+        .switch_datastore(SrDatastore::Operational)
+        .expect("Should Switch");
+
+    session
+        .set_item_str("/test_module:stateLeaf", Some("42"), None, 0)
+        .unwrap();
+    session.set_item_str(LEAF, Some("1"), None, 0).unwrap();
+    session.apply_changes(None).unwrap();
+
+    let data = session
+        .get_data(
+            &ctx,
+            "/test_module:*",
+            0,
+            None,
+            SrGetOptions::SR_OPER_DEFAULT,
+        )
+        .unwrap();
+    assert!(data.find_path("/test_module:stateLeaf", false).is_ok());
+    assert!(data.find_path(LEAF, false).is_ok());
+
+    let data = session
+        .get_data(
+            &ctx,
+            "/test_module:*",
+            0,
+            None,
+            SrGetOptions::SR_OPER_NO_STATE,
+        )
+        .unwrap();
+    assert!(data.find_path("/test_module:stateLeaf", false).is_err());
+    assert!(data.find_path(LEAF, false).is_ok());
+}
+
+#[test]
+fn test_edit_batch() {}

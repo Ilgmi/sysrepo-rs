@@ -5,7 +5,7 @@
 
 use std::env;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
-use sysrepo::enums::{SrDatastore, SrLogLevel};
+use sysrepo::enums::{SrDatastore, SrGetOptions, SrLogLevel};
 use sysrepo::*;
 use yang3::data::{Data, DataFormat, DataPrinterFlags};
 
@@ -76,7 +76,7 @@ fn run() -> bool {
 
     // Get the data.
     let data = sess
-        .get_data(&ctx, &xpath, 0, None, 0)
+        .get_data(&ctx, &xpath, 0, None, SrGetOptions::SR_OPER_DEFAULT)
         .expect("Failed to get data");
 
     // Print data tree in the XML format.

@@ -6,20 +6,54 @@ module test_module {
         type int32;
     }
 
+    leaf stateLeaf {
+        config false;
+        type int32;
+    }
+
+    leaf-list values {
+        ordered-by user;
+        type int32;
+    }
+
+    leaf leafWithDefault {
+        type int32;
+        default 123;
+    }
+
+
+
     container cont {
+        presence true;
         leaf l {
-            type string;
+            type string{
+                length "0..10";
+            }
         }
 
-        list test-list {
-            key name;
-            leaf name {
-                type string;
+
+
+        container sub {
+
+            list test-list {
+                key name;
+                leaf name {
+                    type string;
+                }
+                leaf val {
+                    type string;
+                }
+
+                container cont {
+                    leaf l {
+                        type string;
+                    }
+                }
+
             }
-            leaf val {
-                type string;
-            }
+
         }
+
     }
 
     container stats {

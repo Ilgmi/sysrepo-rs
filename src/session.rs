@@ -1,5 +1,5 @@
 use crate::common::dup_str;
-use crate::enums::{DefaultOperation, SrDatastore, SrEditFlag, SrNotifType};
+use crate::enums::{DefaultOperation, SrDatastore, SrEditFlag, SrGetOptions, SrNotifType};
 use crate::errors::SrError;
 use crate::str_to_cstring;
 use crate::subscription::{SrSubscription, SrSubscriptionId};
@@ -10,7 +10,6 @@ use libyang3_sys::lyd_node;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem::{zeroed, ManuallyDrop};
-use std::ops::Deref;
 use std::os::raw::c_char;
 use std::time::Duration;
 use std::{fmt, ptr};
@@ -123,7 +122,7 @@ impl SrSession {
         Ok(())
     }
 
-    pub fn get_datastore(&self) -> SrDatastore {
+    pub fn active_datastore(&self) -> SrDatastore {
         let ds = unsafe { ffi_sys::sr_session_get_ds(self.raw_session) };
         ds.into()
     }
@@ -148,7 +147,7 @@ impl SrSession {
         xpath: &str,
         max_depth: u32,
         timeout: Option<Duration>,
-        opts: u32,
+        opts: SrGetOptions,
     ) -> Result<DataTree<'a>, SrError> {
         let xpath = str_to_cstring(xpath)?;
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
@@ -162,7 +161,7 @@ impl SrSession {
                 xpath.as_ptr(),
                 max_depth,
                 timeout_ms,
-                opts,
+                opts.bits(),
                 &mut data,
             )
         };
@@ -223,8 +222,8 @@ impl SrSession {
         node: &DataTree<'a>,
         oper: DefaultOperation,
     ) -> Result<(), SrError> {
-        let oper = dup_str(oper.as_str())?;
-        let ret = unsafe { ffi_sys::sr_edit_batch(self.raw_session, node.raw(), oper) };
+        let oper = str_to_cstring(oper.as_str())?;
+        let ret = unsafe { ffi_sys::sr_edit_batch(self.raw_session, node.raw(), oper.as_ptr()) };
 
         if ret != SrError::Ok as i32 {
             return Err(SrError::from(ret));
@@ -233,7 +232,7 @@ impl SrSession {
         Ok(())
     }
 
-    /// Get items from given Xpath, anre return result in Value slice.
+    /// Get items from given Xpath, and return result in Value slice.
     pub fn get_items(
         &mut self,
         xpath: &str,
@@ -1010,13 +1009,13 @@ mod tests {
         let session = connection.start_session(SrDatastore::Running).unwrap();
 
         assert!(session.switch_datastore(SrDatastore::Startup).is_ok());
-        assert_eq!(session.get_datastore(), SrDatastore::Startup);
+        assert_eq!(session.active_datastore(), SrDatastore::Startup);
 
         assert!(session.switch_datastore(SrDatastore::Operational).is_ok());
-        assert_eq!(session.get_datastore(), SrDatastore::Operational);
+        assert_eq!(session.active_datastore(), SrDatastore::Operational);
 
         assert!(session.switch_datastore(SrDatastore::Candidate).is_ok());
-        assert_eq!(session.get_datastore(), SrDatastore::Candidate);
+        assert_eq!(session.active_datastore(), SrDatastore::Candidate);
     }
 
     #[test]
@@ -1025,7 +1024,7 @@ mod tests {
             .expect("Failed to create connection");
         let session = connection.start_session(SrDatastore::Running).unwrap();
 
-        assert_eq!(session.get_datastore(), SrDatastore::Running);
+        assert_eq!(session.active_datastore(), SrDatastore::Running);
     }
 
     #[test]

@@ -21,6 +21,7 @@ sysrepo-sys = { path = "sysrepo-sys", version = "0.1.0" }
 libc = "0.2.121"
 yang3 = { path = "../yang-rs" }
 libyang3-sys = { path = "../yang-rs/libyang3-sys" }
+bitflags = "2.9.0"
 
 [workspace]
 members = [
