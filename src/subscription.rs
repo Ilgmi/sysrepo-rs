@@ -690,7 +690,7 @@ mod tests {
             );
             assert!(sub_id.is_ok());
             let ctx = session.get_context();
-            let _res = session.get_data(&ctx, "/examples:stats", None, None, 0);
+            let _res = session.get_data(&ctx, "/examples:stats", 0, None, 0);
 
             let mut expected_node = DataTree::new(&ctx);
             let _ref = expected_node
