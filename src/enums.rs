@@ -18,12 +18,24 @@ pub enum SrConnFlag {
 }
 
 /// Datastore.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum SrDatastore {
     Startup = ffi_sys::sr_datastore_t_SR_DS_STARTUP as isize,
     Running = ffi_sys::sr_datastore_t_SR_DS_RUNNING as isize,
     Candidate = ffi_sys::sr_datastore_t_SR_DS_CANDIDATE as isize,
     Operational = ffi_sys::sr_datastore_t_SR_DS_OPERATIONAL as isize,
+}
+
+impl From<ffi_sys::sr_datastore_t> for SrDatastore {
+    fn from(value: ffi_sys::sr_datastore_t) -> Self {
+        match value {
+            ffi_sys::sr_datastore_t_SR_DS_STARTUP => Self::Startup,
+            ffi_sys::sr_datastore_t_SR_DS_RUNNING => Self::Running,
+            ffi_sys::sr_datastore_t_SR_DS_CANDIDATE => Self::Candidate,
+            ffi_sys::sr_datastore_t_SR_DS_OPERATIONAL => Self::Operational,
+            _ => panic!("DS not found"),
+        }
+    }
 }
 
 /// Get Oper Flag.
