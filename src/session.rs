@@ -108,6 +108,26 @@ impl SrSession {
         ManuallyDrop::new(ctx)
     }
 
+    pub fn get_id(&self) -> u32 {
+        unsafe { ffi_sys::sr_session_get_id(self.raw_session) }
+    }
+
+    pub fn switch_datastore(&self, datastore: SrDatastore) -> Result<(), SrError> {
+        let rc = unsafe {
+            ffi_sys::sr_session_switch_ds(self.raw_session, datastore as ffi_sys::sr_datastore_t)
+        };
+        if rc != SrError::Ok as i32 {
+            return Err(SrError::from(rc));
+        }
+
+        Ok(())
+    }
+
+    pub fn get_datastore(&self) -> SrDatastore {
+        let ds = unsafe { ffi_sys::sr_session_get_ds(self.raw_session) };
+        ds.into()
+    }
+
     /// Insert subscription.
     fn insert_subscription(&mut self, subscription: SrSubscription) -> SrSubscriptionId {
         let id = subscription.id();
@@ -126,12 +146,11 @@ impl SrSession {
         &mut self,
         context: &'a Context,
         xpath: &str,
-        max_depth: Option<u32>,
+        max_depth: u32,
         timeout: Option<Duration>,
         opts: u32,
     ) -> Result<DataTree<'a>, SrError> {
         let xpath = str_to_cstring(xpath)?;
-        let max_depth = max_depth.unwrap_or(0);
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
 
         // SAFETY: data is used as output by sr_get_data and is not read
@@ -971,6 +990,42 @@ mod tests {
         let session = connection.start_session(SrDatastore::Running);
 
         assert!(session.is_ok());
+    }
+
+    #[test]
+    fn get_session_id_successful() {
+        let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("Failed to create connection");
+        let session = connection.start_session(SrDatastore::Running);
+
+        assert!(session.is_ok());
+        let session_id = session.unwrap().get_id();
+        assert!(session_id > 0)
+    }
+
+    #[test]
+    fn session_switch_ds_successful() {
+        let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("Failed to create connection");
+        let session = connection.start_session(SrDatastore::Running).unwrap();
+
+        assert!(session.switch_datastore(SrDatastore::Startup).is_ok());
+        assert_eq!(session.get_datastore(), SrDatastore::Startup);
+
+        assert!(session.switch_datastore(SrDatastore::Operational).is_ok());
+        assert_eq!(session.get_datastore(), SrDatastore::Operational);
+
+        assert!(session.switch_datastore(SrDatastore::Candidate).is_ok());
+        assert_eq!(session.get_datastore(), SrDatastore::Candidate);
+    }
+
+    #[test]
+    fn session_get_switch_ds_successful() {
+        let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("Failed to create connection");
+        let session = connection.start_session(SrDatastore::Running).unwrap();
+
+        assert_eq!(session.get_datastore(), SrDatastore::Running);
     }
 
     #[test]
