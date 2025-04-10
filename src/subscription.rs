@@ -1,4 +1,4 @@
-use crate::common::dup_str;
+use crate::common::{dup_str, str_to_cstring};
 use crate::connection::SrConnection;
 use crate::enums::SrNotifType;
 use crate::errors::SrError;
@@ -279,14 +279,16 @@ impl SrSubscription {
         let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t = std::ptr::null_mut();
         let data = Box::into_raw(Box::new(callback));
         let xpath = match xpath {
-            Some(path) => dup_str(path)?,
-            None => std::ptr::null_mut(),
+            Some(path) => Some(str_to_cstring(path)?),
+            None => None,
         };
+
+        let xpath_ptr = xpath.as_ref().map_or(std::ptr::null(), |x| x.as_ptr());
 
         let rc = unsafe {
             ffi_sys::sr_rpc_subscribe(
                 session.get_raw_mut(),
-                xpath,
+                xpath_ptr,
                 Some(Self::call_rpc_cb::<F>),
                 data as *mut _,
                 priority,
@@ -374,14 +376,16 @@ impl SrSubscription {
         let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t = std::ptr::null_mut();
         let data = Box::into_raw(Box::new(callback));
         let xpath = match xpath {
-            Some(path) => dup_str(path)?,
-            None => std::ptr::null_mut(),
+            Some(path) => Some(str_to_cstring(path)?),
+            None => None,
         };
+
+        let xpath_ptr = xpath.as_ref().map_or(std::ptr::null(), |x| x.as_ptr());
 
         let rc = unsafe {
             ffi_sys::sr_rpc_subscribe_tree(
                 session.get_raw_mut(),
-                xpath,
+                xpath_ptr,
                 Some(Self::call_rpc_tree_cb::<F>),
                 data as *mut _,
                 priority,
@@ -416,9 +420,11 @@ impl SrSubscription {
     {
         let mod_name = dup_str(module_name)?;
         let xpath = match xpath {
-            Some(xpath) => dup_str(xpath)?,
-            None => std::ptr::null_mut(),
+            Some(path) => Some(str_to_cstring(path)?),
+            None => None,
         };
+
+        let xpath_ptr = xpath.as_ref().map_or(std::ptr::null(), |x| x.as_ptr());
 
         let start_time = start_time.unwrap_or(std::ptr::null_mut());
         let stop_time = stop_time.unwrap_or(std::ptr::null_mut());
@@ -429,7 +435,7 @@ impl SrSubscription {
             ffi_sys::sr_notif_subscribe(
                 session.get_raw_mut(),
                 mod_name,
-                xpath,
+                xpath_ptr,
                 start_time,
                 stop_time,
                 Some(Self::call_event_notif_cb::<F>),
@@ -461,9 +467,11 @@ impl SrSubscription {
     {
         let mod_name = dup_str(module_name)?;
         let xpath = match xpath {
-            Some(xpath) => dup_str(xpath)?,
-            None => std::ptr::null_mut(),
+            Some(path) => Some(str_to_cstring(path)?),
+            None => None,
         };
+
+        let xpath_ptr = xpath.as_ref().map_or(std::ptr::null(), |x| x.as_ptr());
 
         let start_time = start_time.unwrap_or(std::ptr::null_mut());
         let stop_time = stop_time.unwrap_or(std::ptr::null_mut());
@@ -474,7 +482,7 @@ impl SrSubscription {
             ffi_sys::sr_notif_subscribe_tree(
                 session.get_raw_mut(),
                 mod_name,
-                xpath,
+                xpath_ptr,
                 start_time,
                 stop_time,
                 Some(Self::call_event_notif_tree_cb::<F>),
@@ -588,7 +596,7 @@ mod tests {
                 Ok(())
             };
 
-            let _res = session.set_item_str("/examples:cont/l", "123", None, 0);
+            let _res = session.set_item_str("/examples:cont/l", Some("123"), None, 0);
             let _res = session.apply_changes(None);
             assert!(_res.is_ok());
 
@@ -601,7 +609,7 @@ mod tests {
             );
             assert!(sub_id.is_ok());
 
-            let _res = session.set_item_str("/examples:cont/l", "321", None, 0);
+            let _res = session.set_item_str("/examples:cont/l", Some("321"), None, 0);
             let _res = session.apply_changes(None);
             assert!(_res.is_ok());
 
@@ -628,14 +636,14 @@ mod tests {
                 Ok(())
             };
 
-            let _res = session.set_item_str("/examples:cont/l", "123", None, 0);
+            let _res = session.set_item_str("/examples:cont/l", Some("123"), None, 0);
             let _res = session.apply_changes(None);
             assert!(_res.is_ok());
 
             let sub_id = session.on_module_change_subscribe("examples", None, callback, 0, 0);
             assert!(sub_id.is_ok());
 
-            let _res = session.set_item_str("/examples:cont/l", "321", None, 0);
+            let _res = session.set_item_str("/examples:cont/l", Some("321"), None, 0);
             let _res = session.apply_changes(None);
             assert!(_res.is_ok());
 

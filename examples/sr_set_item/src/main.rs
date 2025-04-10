@@ -53,7 +53,7 @@ fn run() -> bool {
     };
 
     // Set the value.
-    if let Err(_) = sess.set_item_str(&xpath, &value, None, 0) {
+    if let Err(_) = sess.set_item_str(&xpath, Some(&value), None, 0) {
         return false;
     }
 

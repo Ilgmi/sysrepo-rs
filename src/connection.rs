@@ -1,3 +1,4 @@
+use crate::common::str_to_cstring;
 use crate::enums::SrDatastore;
 use crate::errors::SrError;
 use crate::session::{SrSession, SrSessionId};
@@ -103,16 +104,10 @@ impl SrConnection {
 
         let search_dirs = match search_dirs {
             None => None,
-            Some(dirs) => match CString::new(dirs) {
-                Ok(dirs) => Some(dirs),
-                Err(_) => return Err(SrError::InvalArg),
-            },
+            Some(dirs) => Some(str_to_cstring(dirs)?),
         };
 
-        let search_dirs = match search_dirs {
-            None => ptr::null(),
-            Some(dirs) => dirs.as_ptr(),
-        };
+        let search_dirs = search_dirs.as_ref().map_or(ptr::null(), |x| x.as_ptr());
 
         let features_cstr = match features {
             None => {

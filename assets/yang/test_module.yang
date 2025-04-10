@@ -1,6 +1,6 @@
-module examples {
-    namespace "urn:examples";
-    prefix e;
+module test_module {
+    namespace "urn:test_module";
+    prefix tm;
 
     leaf testInt32 {
         type int32;
@@ -11,6 +11,15 @@ module examples {
             type string;
         }
 
+        list test-list {
+            key name;
+            leaf name {
+                type string;
+            }
+            leaf val {
+                type string;
+            }
+        }
     }
 
     container stats {

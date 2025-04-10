@@ -1,5 +1,5 @@
 use crate::common::dup_str;
-use crate::enums::{DefaultOperation, SrEditFlag, SrNotifType};
+use crate::enums::{DefaultOperation, SrDatastore, SrEditFlag, SrNotifType};
 use crate::errors::SrError;
 use crate::str_to_cstring;
 use crate::subscription::{SrSubscription, SrSubscriptionId};
@@ -130,7 +130,7 @@ impl SrSession {
         timeout: Option<Duration>,
         opts: u32,
     ) -> Result<DataTree<'a>, SrError> {
-        let xpath = dup_str(xpath)?;
+        let xpath = str_to_cstring(xpath)?;
         let max_depth = max_depth.unwrap_or(0);
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
 
@@ -140,7 +140,7 @@ impl SrSession {
         let rc = unsafe {
             ffi_sys::sr_get_data(
                 self.raw_session,
-                xpath,
+                xpath.as_ptr(),
                 max_depth,
                 timeout_ms,
                 opts,
@@ -165,15 +165,16 @@ impl SrSession {
         context: &'a Context,
         xpath: &str,
         timeout: Option<Duration>,
-        _opts: u32,
     ) -> Result<DataTree<'a>, SrError> {
-        let xpath = dup_str(xpath)?;
+        let xpath = str_to_cstring(xpath)?;
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
 
         // SAFETY: data is used as output by sr_get_data and is not read
         let mut data: *mut ffi_sys::sr_data_t = ptr::null_mut();
 
-        let rc = unsafe { ffi_sys::sr_get_node(self.raw_session, xpath, timeout_ms, &mut data) };
+        let rc = unsafe {
+            ffi_sys::sr_get_node(self.raw_session, xpath.as_ptr(), timeout_ms, &mut data)
+        };
 
         if rc != SrError::Ok as i32 {
             return Err(SrError::from(rc));
@@ -247,26 +248,28 @@ impl SrSession {
     pub fn set_item_str(
         &mut self,
         path: &str,
-        value: &str,
+        value: Option<&str>,
         origin: Option<&str>,
         opts: u32,
     ) -> Result<(), SrError> {
         let path = str_to_cstring(path)?;
-        let value = str_to_cstring(value)?;
+
+        let value = match value {
+            Some(value) => Some(str_to_cstring(value)?),
+            None => None,
+        };
+        let value_ptr = value.as_ref().map_or(std::ptr::null(), |val| val.as_ptr());
+
         let origin = match origin {
             Some(orig) => Some(str_to_cstring(orig)?),
             None => None,
         };
-        let origin_ptr = origin.map_or(std::ptr::null(), |orig| orig.as_ptr());
+        let origin_ptr = origin
+            .as_ref()
+            .map_or(std::ptr::null(), |orig| orig.as_ptr());
 
         let rc = unsafe {
-            ffi_sys::sr_set_item_str(
-                self.raw_session,
-                path.as_ptr(),
-                value.as_ptr(),
-                origin_ptr,
-                opts,
-            )
+            ffi_sys::sr_set_item_str(self.raw_session, path.as_ptr(), value_ptr, origin_ptr, opts)
         };
         if rc != SrError::Ok as i32 {
             Err(SrError::from(rc))
@@ -299,12 +302,46 @@ impl SrSession {
         timeout: Option<Duration>,
     ) -> Result<(), SrError> {
         let module = match module {
-            None => std::ptr::null(),
-            Some(module) => dup_str(module)?,
+            None => None,
+            Some(module) => Some(str_to_cstring(module)?),
         };
+        let module_ptr = module.as_ref().map_or(ptr::null(), |x| x.as_ptr());
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
-        let ret =
-            unsafe { ffi_sys::sr_replace_config(self.raw_session, module, node.raw(), timeout_ms) };
+        let ret = unsafe {
+            ffi_sys::sr_replace_config(self.raw_session, module_ptr, node.raw(), timeout_ms)
+        };
+
+        if ret != SrError::Ok as i32 {
+            return Err(SrError::from(ret));
+        }
+
+        Ok(())
+    }
+
+    pub fn copy_config(
+        &self,
+        source: SrDatastore,
+        module_name: Option<&str>,
+        timeout: Duration,
+    ) -> Result<(), SrError> {
+        let module_name = match module_name {
+            None => None,
+            Some(module_name) => Some(str_to_cstring(module_name)?),
+        };
+
+        let module_name_ptr = module_name
+            .as_ref()
+            .map_or(std::ptr::null(), |module_name| module_name.as_ptr());
+        let timeout_ms = timeout.as_millis() as u32;
+
+        let ret = unsafe {
+            ffi_sys::sr_copy_config(
+                self.raw_session,
+                module_name_ptr,
+                source as ffi_sys::sr_datastore_t,
+                timeout_ms,
+            )
+        };
 
         if ret != SrError::Ok as i32 {
             return Err(SrError::from(ret));
@@ -318,6 +355,17 @@ impl SrSession {
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
 
         let rc = unsafe { ffi_sys::sr_apply_changes(self.raw_session, timeout_ms) };
+        if rc != SrError::Ok as i32 {
+            Err(SrError::from(rc))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Discard Changes
+    pub fn discard_changes(&self) -> Result<(), SrError> {
+        let rc = unsafe { ffi_sys::sr_discard_changes(self.raw_session) };
+
         if rc != SrError::Ok as i32 {
             Err(SrError::from(rc))
         } else {

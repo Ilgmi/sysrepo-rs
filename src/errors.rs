@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use sysrepo_sys as ffi_sys;
 
 /// Error.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SrError {
     Ok = ffi_sys::sr_error_t_SR_ERR_OK as isize,
     InvalArg = ffi_sys::sr_error_t_SR_ERR_INVAL_ARG as isize,
