@@ -76,7 +76,7 @@ fn run() -> bool {
 
     // Get the data.
     let data = sess
-        .get_data(&ctx, &xpath, None, None, 0)
+        .get_data(&ctx, &xpath, 0, None, 0)
         .expect("Failed to get data");
 
     // Print data tree in the XML format.
