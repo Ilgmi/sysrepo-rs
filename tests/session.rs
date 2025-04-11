@@ -2,10 +2,10 @@ use crate::common::Setup;
 use std::fmt::{Debug, Display};
 use std::time::Duration;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
-use sysrepo::enums::{SrDatastore, SrEditFlag, SrGetOptions, SrLogLevel};
+use sysrepo::enums::{DefaultOperation, SrDatastore, SrEditFlag, SrGetOptions, SrLogLevel};
 use sysrepo::errors::SrError;
-use sysrepo::log_stderr;
-use yang3::data::{Data, DataFormat, DataPrinterFlags};
+use sysrepo::{log_stderr, value};
+use yang3::data::{Data, DataFormat, DataPrinterFlags, DataTree, NewValueCreationOptions};
 use yang3::schema::{DataValue, SchemaPathFormat};
 
 mod common;
@@ -360,4 +360,70 @@ fn test_get_data_options_for_operational_DS() {
 }
 
 #[test]
-fn test_edit_batch() {}
+fn test_edit_batch() {
+    log_stderr(SrLogLevel::Error);
+    let _setup = Setup::setup_test_module();
+
+    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let session = connection
+        .start_session(SrDatastore::Running)
+        .expect("session");
+    let ctx = session.get_context();
+
+    session
+        .copy_config(
+            SrDatastore::Startup,
+            Some("test_module"),
+            Duration::from_secs(0),
+        )
+        .unwrap();
+
+    assert!(session
+        .get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT)
+        .is_err());
+
+    let mut batch = DataTree::new(&ctx);
+    batch
+        .new_path(LEAF, Some("123"), NewValueCreationOptions::empty())
+        .unwrap();
+
+    assert!(session.edit_batch(&batch, DefaultOperation::Merge).is_ok());
+    assert!(session.apply_changes(None).is_ok());
+    let data = session
+        .get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT)
+        .unwrap();
+    let data = data.reference().unwrap().value();
+    assert_eq!(data, Some(DataValue::Int32(123)));
+}
+
+#[test]
+fn get_items() {
+    log_stderr(SrLogLevel::Error);
+    let _setup = Setup::setup_test_module();
+
+    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let session = connection
+        .start_session(SrDatastore::Running)
+        .expect("session");
+
+    session.set_item_str(LEAF, Some("1"), None, 0).unwrap();
+    session.apply_changes(None).unwrap();
+
+    let values = session.get_items(LEAF, None, 0);
+    assert!(values.is_ok());
+
+    let values = values.unwrap();
+    assert_eq!(values.len(), 1);
+
+    let value = values.get_value_mut(0);
+    assert!(value.is_ok());
+
+    let value = value.unwrap();
+    assert_eq!(value.xpath(), LEAF);
+    match value.data() {
+        value::Data::Int32(val) => {
+            assert_eq!(*val, 1)
+        }
+        _ => panic!("Wrong data type"),
+    }
+}
