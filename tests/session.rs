@@ -1,10 +1,13 @@
 use crate::common::Setup;
 use std::fmt::{Debug, Display};
+use std::mem::ManuallyDrop;
 use std::time::Duration;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
 use sysrepo::enums::{DefaultOperation, SrDatastore, SrEditFlag, SrGetOptions, SrLogLevel};
 use sysrepo::errors::SrError;
+use sysrepo::session::SrSession;
 use sysrepo::{log_stderr, value};
+use yang3::context::Context;
 use yang3::data::{Data, DataFormat, DataPrinterFlags, DataTree, NewValueCreationOptions};
 use yang3::schema::{DataValue, SchemaPathFormat};
 
@@ -472,6 +475,77 @@ fn test_pending_changes() {
         DataValue::Int32(1)
     );
 
-    // session.discard_items(LEAF).unwrap();
-    // assert!(session.get_pending_changes(&ctx).is_none());
+    session.discard_items(LEAF).unwrap();
+    assert!(session.get_pending_changes(&ctx).is_none());
+}
+
+fn prepare_test_replace_config<'a>(
+    session: &mut SrSession,
+    ctx: &'a ManuallyDrop<Context>,
+) -> DataTree<'a> {
+    assert!(session
+        .get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT)
+        .is_err());
+
+    session.set_item_str(LEAF, Some("1"), None, 0).unwrap();
+    session.apply_changes(None).unwrap();
+
+    let conf = session.get_data(&ctx, "/*", 0, None, SrGetOptions::SR_OPER_DEFAULT);
+    assert!(conf.is_ok());
+    let conf = conf.unwrap();
+
+    session.set_item_str(LEAF, Some("123"), None, 0).unwrap();
+    session.apply_changes(None).unwrap();
+
+    let data = session
+        .get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT)
+        .unwrap();
+    let data = data.reference().unwrap().value();
+    assert_eq!(data, Some(DataValue::Int32(123)));
+
+    conf
+}
+
+#[test]
+fn test_replace_config_with_none() {
+    log_stderr(SrLogLevel::Error);
+    let _setup = Setup::setup_test_module();
+
+    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let session = connection
+        .start_session(SrDatastore::Running)
+        .expect("session");
+    let ctx = session.get_context();
+
+    prepare_test_replace_config(session, &ctx);
+
+    assert!(session
+        .replace_config(None, Some("test_module"), None)
+        .is_ok());
+    assert!(session
+        .get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT)
+        .is_err());
+}
+
+#[test]
+fn test_replace_config_with_this_module() {
+    log_stderr(SrLogLevel::Error);
+    let _setup = Setup::setup_test_module();
+
+    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let session = connection
+        .start_session(SrDatastore::Running)
+        .expect("session");
+    let ctx = session.get_context();
+
+    let conf = prepare_test_replace_config(session, &ctx);
+
+    assert!(session
+        .replace_config(Some(&conf), Some("test_module"), None)
+        .is_ok());
+    let data = session
+        .get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT)
+        .unwrap();
+    let value = data.reference().unwrap().value();
+    assert_eq!(value, Some(DataValue::Int32(1)));
 }

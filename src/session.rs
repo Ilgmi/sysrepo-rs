@@ -315,7 +315,7 @@ impl SrSession {
 
     pub fn replace_config<'a>(
         &mut self,
-        node: &DataTree<'a>,
+        node: Option<&DataTree<'a>>,
         module: Option<&str>,
         timeout: Option<Duration>,
     ) -> Result<(), SrError> {
@@ -325,8 +325,11 @@ impl SrSession {
         };
         let module_ptr = module.as_ref().map_or(ptr::null(), |x| x.as_ptr());
         let timeout_ms = timeout.map_or(0, |timeout| timeout.as_millis() as u32);
+
+        let node_ptr = node.as_ref().map_or(ptr::null(), |x| x.raw()) as _;
+
         let ret = unsafe {
-            ffi_sys::sr_replace_config(self.raw_session, module_ptr, node.raw(), timeout_ms)
+            ffi_sys::sr_replace_config(self.raw_session, module_ptr, node_ptr, timeout_ms)
         };
 
         if ret != SrError::Ok as i32 {
