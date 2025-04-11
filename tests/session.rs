@@ -397,7 +397,7 @@ fn test_edit_batch() {
 }
 
 #[test]
-fn get_items() {
+fn test_get_items() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
@@ -426,4 +426,52 @@ fn get_items() {
         }
         _ => panic!("Wrong data type"),
     }
+}
+
+#[test]
+fn test_pending_changes() {
+    log_stderr(SrLogLevel::Error);
+    let _setup = Setup::setup_test_module();
+
+    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let session = connection
+        .start_session(SrDatastore::Running)
+        .expect("session");
+    let ctx = session.get_context();
+
+    assert!(session.get_pending_changes(&ctx).is_none());
+    session.set_item_str(LEAF, Some("1"), None, 0).unwrap();
+    let changes = session.get_pending_changes(&ctx);
+    assert!(changes.is_some());
+    let changes = changes.unwrap();
+    assert_eq!(
+        changes.reference().unwrap().value().unwrap(),
+        DataValue::Int32(1)
+    );
+    session.apply_changes(None).unwrap();
+    assert!(session.get_pending_changes(&ctx).is_none());
+
+    session.set_item_str(LEAF, Some("1"), None, 0).unwrap();
+    let changes = session.get_pending_changes(&ctx);
+    assert!(changes.is_some());
+    let changes = changes.unwrap();
+    assert_eq!(
+        changes.reference().unwrap().value().unwrap(),
+        DataValue::Int32(1)
+    );
+
+    session.discard_changes().unwrap();
+    assert!(session.get_pending_changes(&ctx).is_none());
+
+    session.set_item_str(LEAF, Some("1"), None, 0).unwrap();
+    let changes = session.get_pending_changes(&ctx);
+    assert!(changes.is_some());
+    let changes = changes.unwrap();
+    assert_eq!(
+        changes.reference().unwrap().value().unwrap(),
+        DataValue::Int32(1)
+    );
+
+    // session.discard_items(LEAF).unwrap();
+    // assert!(session.get_pending_changes(&ctx).is_none());
 }

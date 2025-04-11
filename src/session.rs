@@ -391,6 +391,27 @@ impl SrSession {
         }
     }
 
+    // Discard Changes
+    pub fn discard_items(&self, path: &str) -> Result<(), SrError> {
+        let path = CString::new(path).map_err(|_| SrError::NotFound)?;
+        let rc = unsafe { ffi_sys::sr_discard_changes_xpath(self.raw_session, path.as_ptr()) };
+
+        if rc != SrError::Ok as i32 {
+            Err(SrError::from(rc))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn get_pending_changes<'a>(&self, ctx: &'a Context) -> Option<ManuallyDrop<DataTree<'a>>> {
+        let node = unsafe { ffi_sys::sr_get_changes(self.raw_session) };
+        if node.is_null() {
+            None
+        } else {
+            unsafe { Some(ManuallyDrop::new(DataTree::from_raw(ctx, node as _))) }
+        }
+    }
+
     /// Subscribe event notification.
     pub fn on_notif_subscribe<F>(
         &mut self,
