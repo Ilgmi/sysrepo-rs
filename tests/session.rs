@@ -528,7 +528,7 @@ fn test_replace_config_with_none() {
 }
 
 #[test]
-fn test_replace_config_with_this_module() {
+fn test_replace_config_with_config() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
@@ -546,6 +546,31 @@ fn test_replace_config_with_this_module() {
     let data = session
         .get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT)
         .unwrap();
+    let value = data.reference().unwrap().value();
+    assert_eq!(value, Some(DataValue::Int32(1)));
+}
+
+#[test]
+fn test_copy_config_from_startup_to_running() {
+    log_stderr(SrLogLevel::Error);
+    let _setup = Setup::setup_test_module();
+
+    let mut con = SrConnection::new(ConnectionOptions::Datastore_StartUp).expect("connect");
+    let ctx = con.get_context();
+    let session = con.start_session(SrDatastore::Startup).expect("session");
+
+    session.set_item_str(LEAF, Some("1"), None, 0).unwrap();
+    session.apply_changes(None).unwrap();
+
+    session.switch_datastore(SrDatastore::Running).unwrap();
+
+    assert!(session
+        .copy_config(SrDatastore::Startup, None, Duration::from_secs(2))
+        .is_ok());
+
+    let data = session.get_data(&ctx, LEAF, 0, None, SrGetOptions::empty());
+    assert!(data.is_ok());
+    let data = data.unwrap();
     let value = data.reference().unwrap().value();
     assert_eq!(value, Some(DataValue::Int32(1)));
 }
