@@ -13,7 +13,7 @@ use sysrepo::session::SrSession;
 use sysrepo::*;
 use utils::*;
 use yang3::context::Context;
-use yang3::data::{DataTree, NewValueCreationOptions};
+use yang3::data::DataTree;
 
 /// Show help.
 fn print_help(program: &str) {
@@ -87,16 +87,8 @@ fn run() -> bool {
 
             if mod_name == "examples" && path == "/examples:stats" {
                 let mut node = DataTree::new(&ctx);
-                let _val1 = node.new_path(
-                    "/examples:stats/counter",
-                    Some("852"),
-                    NewValueCreationOptions::NEW_ANY_USE_VALUE,
-                );
-                let _val2 = node.new_path(
-                    "/examples:stats/counter2",
-                    Some("1052"),
-                    NewValueCreationOptions::NEW_ANY_USE_VALUE,
-                );
+                let _val1 = node.new_path("/examples:stats/counter", Some("852"), false);
+                let _val2 = node.new_path("/examples:stats/counter2", Some("1052"), false);
 
                 Ok(Some(node))
             } else {

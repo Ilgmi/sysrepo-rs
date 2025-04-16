@@ -7,7 +7,7 @@ use std::env;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
 use sysrepo::enums::{SrDatastore, SrLogLevel};
 use sysrepo::*;
-use yang3::data::{DataTree, NewValueCreationOptions};
+use yang3::data::DataTree;
 
 /// Show help.
 fn print_help(program: &str) {
@@ -67,7 +67,7 @@ fn run() -> bool {
 
     // Create the notification.
     let mut notif = DataTree::new(&ly_ctx);
-    let mut _val = match notif.new_path(&path, None, NewValueCreationOptions::NEW_ANY_USE_VALUE) {
+    let mut _val = match notif.new_path(&path, None, false) {
         Ok(notif) => notif.unwrap(),
         Err(_) => {
             println!(r#"Creating notification "{}" failed."#, path);
@@ -77,11 +77,7 @@ fn run() -> bool {
 
     // Add the input value.
     if let Some((path, value)) = node_path_val {
-        match notif.new_path(
-            &path,
-            Some(&value),
-            NewValueCreationOptions::NEW_ANY_USE_VALUE,
-        ) {
+        match notif.new_path(&path, Some(&value), false) {
             Ok(_) => {}
             Err(_) => {
                 println!(r#"Creating value "{}" failed."#, path);

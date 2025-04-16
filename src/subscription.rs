@@ -655,7 +655,7 @@ mod tests {
     mod test_oper_get_subscribe {
         use super::*;
         use crate::enums::SrGetOptions;
-        use yang3::data::{DataDiffFlags, NewValueCreationOptions};
+        use yang3::data::DataDiffFlags;
 
         #[test]
         fn test_call_module_container_value_change() {
@@ -671,18 +671,10 @@ mod tests {
                 |_sess, ctx, _u_id, _path, _request, _xpath, _request_id, _data| {
                     let mut node = DataTree::new(&ctx);
                     let _ref = node
-                        .new_path(
-                            "/examples:stats",
-                            None,
-                            NewValueCreationOptions::NEW_ANY_USE_VALUE,
-                        )
+                        .new_path("/examples:stats", None, false)
                         .map_err(|_e| SrError::Internal)?;
                     let _ref = node
-                        .new_path(
-                            "/examples:stats/counter",
-                            Some("123"),
-                            NewValueCreationOptions::NEW_ANY_USE_VALUE,
-                        )
+                        .new_path("/examples:stats/counter", Some("123"), false)
                         .map_err(|_e| SrError::Internal)?;
 
                     return Ok(Some(node));
@@ -701,19 +693,11 @@ mod tests {
 
             let mut expected_node = DataTree::new(&ctx);
             let _ref = expected_node
-                .new_path(
-                    "/examples:stats",
-                    None,
-                    NewValueCreationOptions::NEW_ANY_USE_VALUE,
-                )
+                .new_path("/examples:stats", None, false)
                 .map_err(|_e| SrError::Internal)
                 .unwrap();
             let _ref = expected_node
-                .new_path(
-                    "/examples:stats/counter",
-                    Some("123"),
-                    NewValueCreationOptions::NEW_ANY_USE_VALUE,
-                )
+                .new_path("/examples:stats/counter", Some("123"), false)
                 .map_err(|_e| SrError::Internal)
                 .unwrap();
 
@@ -729,7 +713,7 @@ mod tests {
     mod test_rpc_subscribe {
         use super::*;
         use crate::value::Data;
-        use yang3::data::{Data as YangData, NewValueCreationOptions};
+        use yang3::data::Data as YangData;
         use yang3::schema::DataValue;
 
         #[test]
@@ -793,11 +777,7 @@ mod tests {
             let sub_id = session.on_rpc_subscribe_tree(
                 Some("/examples:oper"),
                 |_session, _context, _sub_id, _xpath, _inputs, output, _event, _request_id| {
-                    let _r = output.new_path(
-                        "/examples:oper/ret",
-                        Some("123"),
-                        NewValueCreationOptions::NEW_VAL_OUTPUT,
-                    );
+                    let _r = output.new_path("/examples:oper/ret", Some("123"), true);
                 },
                 0,
                 0,
@@ -807,23 +787,15 @@ mod tests {
             let ctx = session.get_context();
             let mut input = DataTree::new(&ctx);
             let _r = input
-                .new_path(
-                    "/examples:oper/arg",
-                    Some("123"),
-                    NewValueCreationOptions::NEW_ANY_USE_VALUE,
-                )
+                .new_path("/examples:oper/arg", Some("123"), false)
                 .unwrap();
-            let _r = input.new_path(
-                "/examples:oper/arg2",
-                Some("1"),
-                NewValueCreationOptions::NEW_ANY_USE_VALUE,
-            );
+            let _r = input.new_path("/examples:oper/arg2", Some("1"), false);
 
             let data = session.rpc_send_tree(&ctx, Some(input), None);
             assert!(data.is_ok());
             let data = data.unwrap();
             let output_path = "/examples:oper/ret";
-            let output = data.find_path(output_path, true);
+            let output = data.find_output_path(output_path);
             assert!(output.is_ok());
             let output = output.unwrap();
             let path = output.path();
@@ -839,7 +811,7 @@ mod tests {
     mod test_on_notification_subscribe {
         use super::*;
         use crate::value::Data;
-        use yang3::data::{Data as yang_data, NewValueCreationOptions};
+        use yang3::data::Data as yang_data;
         use yang3::schema::DataValue;
 
         #[test]
@@ -907,8 +879,7 @@ mod tests {
                             let xpath = node.path();
                             assert_eq!(xpath, "/examples:notif");
 
-                            let value_node =
-                                node.find_path("/examples:notif/val", false).expect("value");
+                            let value_node = node.find_path("/examples:notif/val").expect("value");
                             let value = value_node.value();
 
                             match value {
@@ -934,11 +905,7 @@ mod tests {
 
             let ctx = session.get_context();
             let mut notf_node = DataTree::new(&ctx);
-            let r = notf_node.new_path(
-                "/examples:notif/val",
-                Some("123.0"),
-                NewValueCreationOptions::NEW_ANY_USE_VALUE,
-            );
+            let r = notf_node.new_path("/examples:notif/val", Some("123.0"), false);
             assert!(r.is_ok());
             session.notif_send_tree(&notf_node, 0, 1).unwrap()
         }
