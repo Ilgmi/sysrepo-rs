@@ -33,7 +33,8 @@ fn print_change(change_operation: SrChangeOperation) {
             print_val(val);
         }
         SrChangeOperation::Modified(modified) => {
-            let old_val: &sr_val_t = unsafe { &*modified.prev_value.unwrap().as_raw() };
+            let old_val: &sr_val_t =
+                unsafe { &*modified.prev_value.unwrap().as_raw() };
             let new_val: &sr_val_t = unsafe { &*modified.value.as_raw() };
             print!("MODIFIED: ");
             print_val(&old_val);
@@ -160,7 +161,13 @@ fn run() -> bool {
     // Subscribe for changes in running config.
     if args.len() == 3 {
         let xpath = args[2].clone();
-        match sess.on_module_change_subscribe(&mod_name, Some(&xpath[..]), f, 0, 0) {
+        match sess.on_module_change_subscribe(
+            &mod_name,
+            Some(&xpath[..]),
+            f,
+            0,
+            0,
+        ) {
             Err(_) => return false,
             Ok(subscr) => subscr,
         }

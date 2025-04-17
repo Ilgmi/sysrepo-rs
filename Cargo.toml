@@ -41,6 +41,5 @@ members = [
   "examples/sr_get_data",
   "examples/sr_get_items",
   "examples/sr_set_item",
-  "examples/application_changes",
-  "sysrepo-sys",
+  "examples/application_changes"
 ]

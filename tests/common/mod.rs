@@ -14,7 +14,8 @@ pub struct Setup {
 
 impl Setup {
     pub fn setup_test_module() -> Self {
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
+        let mut connection =
+            SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
         connection
             .install_module(Path::new(TEST_MODULE), None, None)
             .unwrap();
@@ -32,7 +33,8 @@ impl Setup {
     }
 
     pub fn setup_example() -> Self {
-        let con = SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
+        let con =
+            SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
         con.install_module(
             Path::new("./assets/yang/examples@2017-01-19.yang"),
             None,

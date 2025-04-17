@@ -23,9 +23,8 @@ pub fn print_val(value: &sr_val_t) {
     print!("{} ", xpath.to_str().unwrap());
 
     let v = match value.type_ {
-        sr_val_type_t_SR_CONTAINER_T | sr_val_type_t_SR_CONTAINER_PRESENCE_T => {
-            String::from("(container)")
-        }
+        sr_val_type_t_SR_CONTAINER_T
+        | sr_val_type_t_SR_CONTAINER_PRESENCE_T => String::from("(container)"),
         sr_val_type_t_SR_LIST_T => String::from("(list instance)"),
         sr_val_type_t_SR_STRING_T => {
             let string_val = unsafe { CStr::from_ptr(value.data.string_val) };
@@ -73,11 +72,13 @@ pub fn print_val(value: &sr_val_t) {
             format!("= {}", uint64_val)
         }
         sr_val_type_t_SR_IDENTITYREF_T => {
-            let identityref_val = unsafe { CStr::from_ptr(value.data.identityref_val) };
+            let identityref_val =
+                unsafe { CStr::from_ptr(value.data.identityref_val) };
             format!("= {}", identityref_val.to_str().unwrap())
         }
         sr_val_type_t_SR_INSTANCEID_T => {
-            let instanceid_val = unsafe { CStr::from_ptr(value.data.instanceid_val) };
+            let instanceid_val =
+                unsafe { CStr::from_ptr(value.data.instanceid_val) };
             format!("= {}", instanceid_val.to_str().unwrap())
         }
         sr_val_type_t_SR_BITS_T => {
@@ -102,12 +103,15 @@ pub fn print_val(value: &sr_val_t) {
         | sr_val_type_t_SR_CONTAINER_PRESENCE_T
         | sr_val_type_t_SR_LIST_T
         | sr_val_type_t_SR_LEAF_EMPTY_T => println!("{}", v),
-        _ => println!("{}{}", v, if value.dflt == 1 { " [default]" } else { "" }),
+        _ => {
+            println!("{}{}", v, if value.dflt == 1 { " [default]" } else { "" })
+        }
     }
 }
 
 static SIGTSTP_ONCE: sync::Once = sync::Once::new();
-static SIGINT_CAUGHT: sync::atomic::AtomicUsize = sync::atomic::AtomicUsize::new(0);
+static SIGINT_CAUGHT: sync::atomic::AtomicUsize =
+    sync::atomic::AtomicUsize::new(0);
 
 extern "C" fn sigint_handler(_: i32) {
     SIGINT_CAUGHT.fetch_add(1, sync::atomic::Ordering::SeqCst);

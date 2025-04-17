@@ -3,7 +3,9 @@ use std::fmt::{Debug, Display};
 use std::mem::ManuallyDrop;
 use std::time::Duration;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
-use sysrepo::enums::{DefaultOperation, SrDatastore, SrEditFlag, SrGetOptions, SrLogLevel};
+use sysrepo::enums::{
+    DefaultOperation, SrDatastore, SrEditFlag, SrGetOptions, SrLogLevel,
+};
 use sysrepo::errors::SrError;
 use sysrepo::session::SrSession;
 use sysrepo::{log_stderr, value};
@@ -33,7 +35,9 @@ fn test_data_manipulation() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
-    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let mut connection =
+        SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("connect");
     let session = connection
         .start_session(SrDatastore::Running)
         .expect("session");
@@ -43,7 +47,8 @@ fn test_data_manipulation() {
         .copy_config(SrDatastore::Startup, None, Duration::from_secs(3))
         .expect("Copy Startup to Running");
 
-    let data = session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
+    let data =
+        session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
     assert!(data.is_err());
 
     match data {
@@ -76,7 +81,8 @@ fn test_data_manipulation() {
     assert!(session.set_item_str(LEAF, Some("420"), None, 0).is_ok());
     assert!(session.apply_changes(None).is_ok());
 
-    let data = session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
+    let data =
+        session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
     assert!(data.is_ok());
     assert_eq!(
         data.unwrap().reference().unwrap().value(),
@@ -86,13 +92,15 @@ fn test_data_manipulation() {
     assert!(session.remove_item(LEAF, SrEditFlag::Default).is_ok());
     assert!(session.apply_changes(None).is_ok());
 
-    let data = session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
+    let data =
+        session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
     assert!(data.is_err_and(|e| e == SrError::NotFound));
 
     assert!(session.set_item_str(LEAF, Some("420"), None, 0).is_ok());
     assert!(session.discard_changes().is_ok());
 
-    let data = session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
+    let data =
+        session.get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT);
     assert!(data.is_err_and(|e| e == SrError::NotFound));
 
     assert!(session
@@ -160,7 +168,9 @@ fn test_get_data_max_depth() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
-    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let mut connection =
+        SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("connect");
     let session = connection
         .start_session(SrDatastore::Running)
         .expect("session");
@@ -175,7 +185,12 @@ fn test_get_data_max_depth() {
         )
         .unwrap();
     session
-        .set_item_str("/test_module:cont/sub/test-list[name='nop']", None, None, 0)
+        .set_item_str(
+            "/test_module:cont/sub/test-list[name='nop']",
+            None,
+            None,
+            0,
+        )
         .unwrap();
 
     let data = session
@@ -331,7 +346,9 @@ fn test_get_data_options_for_operational_ds() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
-    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let mut connection =
+        SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("connect");
     let session = connection
         .start_session(SrDatastore::Running)
         .expect("session");
@@ -376,7 +393,9 @@ fn test_edit_batch() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
-    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let mut connection =
+        SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("connect");
     let session = connection
         .start_session(SrDatastore::Running)
         .expect("session");
@@ -410,7 +429,9 @@ fn test_get_items() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
-    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let mut connection =
+        SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("connect");
     let session = connection
         .start_session(SrDatastore::Running)
         .expect("session");
@@ -441,7 +462,9 @@ fn test_pending_changes() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
-    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let mut connection =
+        SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("connect");
     let session = connection
         .start_session(SrDatastore::Running)
         .expect("session");
@@ -495,7 +518,8 @@ fn prepare_test_replace_config<'a>(
     session.set_item_str(LEAF, Some("1"), None, 0).unwrap();
     session.apply_changes(None).unwrap();
 
-    let conf = session.get_data(&ctx, "/*", 0, None, SrGetOptions::SR_OPER_DEFAULT);
+    let conf =
+        session.get_data(&ctx, "/*", 0, None, SrGetOptions::SR_OPER_DEFAULT);
     assert!(conf.is_ok());
     let conf = conf.unwrap();
 
@@ -515,7 +539,9 @@ fn test_replace_config_with_none() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
-    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let mut connection =
+        SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("connect");
     let session = connection
         .start_session(SrDatastore::Running)
         .expect("session");
@@ -535,7 +561,9 @@ fn test_replace_config_with_config() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
-    let mut connection = SrConnection::new(ConnectionOptions::Datastore_Running).expect("connect");
+    let mut connection =
+        SrConnection::new(ConnectionOptions::Datastore_Running)
+            .expect("connect");
     let session = connection
         .start_session(SrDatastore::Running)
         .expect("session");
@@ -557,7 +585,8 @@ fn test_copy_config_from_startup_to_running() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
-    let mut con = SrConnection::new(ConnectionOptions::Datastore_StartUp).expect("connect");
+    let mut con = SrConnection::new(ConnectionOptions::Datastore_StartUp)
+        .expect("connect");
     let ctx = con.get_context();
     let session = con.start_session(SrDatastore::Startup).expect("session");
 

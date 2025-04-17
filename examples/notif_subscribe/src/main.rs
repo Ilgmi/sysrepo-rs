@@ -90,7 +90,8 @@ fn run() -> bool {
     };
 
     // Subscribe for the notifications.
-    if let Err(_) = sess.on_notif_subscribe(&mod_name, xpath, None, None, f, 0) {
+    if let Err(_) = sess.on_notif_subscribe(&mod_name, xpath, None, None, f, 0)
+    {
         return false;
     }
 

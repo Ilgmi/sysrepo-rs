@@ -113,7 +113,8 @@ pub enum SrSubcribeFlag {
 pub enum SrNotifType {
     Realtime = ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REALTIME as isize,
     Replay = ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY as isize,
-    ReplayComplete = ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY_COMPLETE as isize,
+    ReplayComplete =
+        ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY_COMPLETE as isize,
     Terminated = ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_TERMINATED as isize,
     Modified = ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_MODIFIED as isize,
     Suspended = ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_SUSPENDED as isize,
@@ -125,15 +126,27 @@ impl TryFrom<u32> for SrNotifType {
 
     fn try_from(event_type: u32) -> Result<Self, Self::Error> {
         match event_type {
-            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REALTIME => Ok(SrNotifType::Realtime),
-            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY => Ok(SrNotifType::Replay),
+            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REALTIME => {
+                Ok(SrNotifType::Realtime)
+            }
+            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY => {
+                Ok(SrNotifType::Replay)
+            }
             ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_REPLAY_COMPLETE => {
                 Ok(SrNotifType::ReplayComplete)
             }
-            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_TERMINATED => Ok(SrNotifType::Terminated),
-            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_MODIFIED => Ok(SrNotifType::Modified),
-            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_SUSPENDED => Ok(SrNotifType::Suspended),
-            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_RESUMED => Ok(SrNotifType::Resumed),
+            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_TERMINATED => {
+                Ok(SrNotifType::Terminated)
+            }
+            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_MODIFIED => {
+                Ok(SrNotifType::Modified)
+            }
+            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_SUSPENDED => {
+                Ok(SrNotifType::Suspended)
+            }
+            ffi_sys::sr_ev_notif_type_t_SR_EV_NOTIF_RESUMED => {
+                Ok(SrNotifType::Resumed)
+            }
             _ => Err("Invalid SrNotifType"),
         }
     }

@@ -30,7 +30,8 @@ mod test_module_change {
         log_stderr(SrLogLevel::Info);
         let _setup = Setup::setup_test_module();
 
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
+        let mut connection =
+            SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
         let session = connection.start_session(SrDatastore::Running).unwrap();
         let check = Arc::new(Mutex::new(0));
         let change_cb_value = check.clone();
@@ -45,7 +46,8 @@ mod test_module_change {
             Ok(())
         };
 
-        let _res = session.set_item_str("/examples:cont/l", Some("123"), None, 0);
+        let _res =
+            session.set_item_str("/examples:cont/l", Some("123"), None, 0);
         let _res = session.apply_changes(None);
         assert!(_res.is_ok());
 
@@ -58,7 +60,8 @@ mod test_module_change {
         );
         assert!(sub_id.is_ok());
 
-        let _res = session.set_item_str("/examples:cont/l", Some("321"), None, 0);
+        let _res =
+            session.set_item_str("/examples:cont/l", Some("321"), None, 0);
         let _res = session.apply_changes(None);
         assert!(_res.is_ok());
 
@@ -69,7 +72,8 @@ mod test_module_change {
     pub fn test_call_module_change() {
         log_stderr(SrLogLevel::Info);
 
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
+        let mut connection =
+            SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
         let session = connection.start_session(SrDatastore::Running).unwrap();
         let check = Arc::new(Mutex::new(0));
         let change_cb_value = check.clone();
@@ -84,14 +88,17 @@ mod test_module_change {
             Ok(())
         };
 
-        let _res = session.set_item_str("/examples:cont/l", Some("123"), None, 0);
+        let _res =
+            session.set_item_str("/examples:cont/l", Some("123"), None, 0);
         let _res = session.apply_changes(None);
         assert!(_res.is_ok());
 
-        let sub_id = session.on_module_change_subscribe("examples", None, callback, 0, 0);
+        let sub_id = session
+            .on_module_change_subscribe("examples", None, callback, 0, 0);
         assert!(sub_id.is_ok());
 
-        let _res = session.set_item_str("/examples:cont/l", Some("321"), None, 0);
+        let _res =
+            session.set_item_str("/examples:cont/l", Some("321"), None, 0);
         let _res = session.apply_changes(None);
         assert!(_res.is_ok());
 
@@ -108,8 +115,11 @@ mod test_oper_get_subscribe {
     pub fn test_call_module_container_value_change() {
         log_stderr(SrLogLevel::Info);
 
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_Operational).unwrap();
-        let session = connection.start_session(SrDatastore::Operational).unwrap();
+        let mut connection =
+            SrConnection::new(ConnectionOptions::Datastore_Operational)
+                .unwrap();
+        let session =
+            connection.start_session(SrDatastore::Operational).unwrap();
 
         let sub_id = session.on_oper_get_subscribe(
             "examples",
@@ -166,15 +176,22 @@ mod test_rpc_subscribe {
     pub fn test_on_rpc_subscribe() {
         log_stderr(SrLogLevel::Info);
 
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_Operational).unwrap();
-        let session = connection.start_session(SrDatastore::Operational).unwrap();
+        let mut connection =
+            SrConnection::new(ConnectionOptions::Datastore_Operational)
+                .unwrap();
+        let session =
+            connection.start_session(SrDatastore::Operational).unwrap();
 
         let sub_id = session.on_rpc_subscribe(
             Some("/examples:oper"),
             |_session, _sub_id, _xpath, _inputs, _event, _request_id| {
                 let mut output = SrValues::new(1, false);
-                let _r =
-                    output.add_value(0, "/examples:oper/ret".to_string(), Data::Int64(123), false);
+                let _r = output.add_value(
+                    0,
+                    "/examples:oper/ret".to_string(),
+                    Data::Int64(123),
+                    false,
+                );
                 output
             },
             0,
@@ -190,7 +207,12 @@ mod test_rpc_subscribe {
             false,
         );
         assert!(r.is_ok());
-        let r = input.add_value(1, "/examples:oper/arg2".to_string(), Data::Int8(123), false);
+        let r = input.add_value(
+            1,
+            "/examples:oper/arg2".to_string(),
+            Data::Int8(123),
+            false,
+        );
         assert!(r.is_ok());
         let data = session.rpc_send("/examples:oper", Some(input), None);
         assert!(data.is_ok());
@@ -210,13 +232,24 @@ mod test_rpc_subscribe {
     fn test_on_rpc_subscribe_tree() {
         log_stderr(SrLogLevel::Error);
 
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_Operational).unwrap();
-        let session = connection.start_session(SrDatastore::Operational).unwrap();
+        let mut connection =
+            SrConnection::new(ConnectionOptions::Datastore_Operational)
+                .unwrap();
+        let session =
+            connection.start_session(SrDatastore::Operational).unwrap();
 
         let sub_id = session.on_rpc_subscribe_tree(
             Some("/examples:oper"),
-            |_session, _context, _sub_id, _xpath, _inputs, output, _event, _request_id| {
-                let _r = output.new_path("/examples:oper/ret", Some("123"), true);
+            |_session,
+             _context,
+             _sub_id,
+             _xpath,
+             _inputs,
+             output,
+             _event,
+             _request_id| {
+                let _r =
+                    output.new_path("/examples:oper/ret", Some("123"), true);
             },
             0,
             0,
@@ -256,7 +289,8 @@ mod test_on_notification_subscribe {
     use yang3::schema::DataValue;
 
     pub fn test_on_notification_subscribe() {
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
+        let mut connection =
+            SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
 
         let session = connection.start_session(SrDatastore::Running).unwrap();
         let check_cb = Arc::new(Mutex::new(0));
@@ -266,7 +300,12 @@ mod test_on_notification_subscribe {
             Some("/examples:notif"),
             None,
             None,
-            move |_session, _sub_id, _notify_type, xpath, values, _timestamp| {
+            move |_session,
+                  _sub_id,
+                  _notify_type,
+                  xpath,
+                  values,
+                  _timestamp| {
                 match _notify_type {
                     SrNotifType::Realtime | SrNotifType::Replay => {
                         assert_eq!(xpath, Some("/examples:notif"));
@@ -297,12 +336,14 @@ mod test_on_notification_subscribe {
             )
             .is_ok());
 
-        let notification_send = session.notif_send("/examples:notif", &values, 0, 1);
+        let notification_send =
+            session.notif_send("/examples:notif", &values, 0, 1);
         assert!(notification_send.is_ok());
     }
 
     pub fn test_on_notification_subscribe_tree() {
-        let mut connection = SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
+        let mut connection =
+            SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();
         let session = connection.start_session(SrDatastore::Running).unwrap();
         let check_cb = Arc::new(Mutex::new(0));
         let check_for_cb = check_cb.clone();
@@ -318,7 +359,9 @@ mod test_on_notification_subscribe {
                         let xpath = node.path();
                         assert_eq!(xpath, "/examples:notif");
 
-                        let value_node = node.find_path("/examples:notif/val").expect("value");
+                        let value_node = node
+                            .find_path("/examples:notif/val")
+                            .expect("value");
                         let value = value_node.value();
 
                         match value {

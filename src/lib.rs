@@ -24,7 +24,10 @@ pub fn log_stderr(log_level: SrLogLevel) {
 }
 
 /// Set Log Syslog.
-pub fn log_syslog(app_name: &str, log_level: SrLogLevel) -> Result<(), SrError> {
+pub fn log_syslog(
+    app_name: &str,
+    log_level: SrLogLevel,
+) -> Result<(), SrError> {
     let app_name = str_to_cstring(app_name)?;
     unsafe {
         ffi_sys::sr_log_syslog(app_name.as_ptr(), log_level as u32);
