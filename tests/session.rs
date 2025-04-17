@@ -8,7 +8,7 @@ use sysrepo::errors::SrError;
 use sysrepo::session::SrSession;
 use sysrepo::{log_stderr, value};
 use yang3::context::Context;
-use yang3::data::{Data, DataFormat, DataPrinterFlags, DataTree, NewValueCreationOptions};
+use yang3::data::{Data, DataFormat, DataPrinterFlags, DataTree};
 use yang3::schema::{DataValue, SchemaPathFormat};
 
 mod common;
@@ -16,6 +16,18 @@ mod common;
 const LEAF: &str = "/test_module:testInt32";
 
 #[test]
+fn test_session() {
+    test_data_manipulation();
+    test_get_data_max_depth();
+    test_get_data_options_for_operational_ds();
+    test_edit_batch();
+    test_get_items();
+    test_pending_changes();
+    test_replace_config_with_none();
+    test_replace_config_with_config();
+    test_copy_config_from_startup_to_running();
+}
+
 fn test_data_manipulation() {
     // Turn logging on.
     log_stderr(SrLogLevel::Error);
@@ -98,7 +110,7 @@ fn test_data_manipulation() {
     let data = data.reference().unwrap();
 
     assert_eq!(data.path(), "/test_module:cont");
-    let val = data.find_path("/test_module:cont/l", false);
+    let val = data.find_path("/test_module:cont/l");
     assert!(val.is_ok());
     let val = val.unwrap();
 
@@ -144,7 +156,6 @@ fn test_data_manipulation() {
         .is_err_and(|e| e == SrError::NotFound));
 }
 
-#[test]
 fn test_get_data_max_depth() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
@@ -316,8 +327,7 @@ fn test_get_data_max_depth() {
     );
 }
 
-#[test]
-fn test_get_data_options_for_operational_DS() {
+fn test_get_data_options_for_operational_ds() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
 
@@ -346,8 +356,8 @@ fn test_get_data_options_for_operational_DS() {
             SrGetOptions::SR_OPER_DEFAULT,
         )
         .unwrap();
-    assert!(data.find_path("/test_module:stateLeaf", false).is_ok());
-    assert!(data.find_path(LEAF, false).is_ok());
+    assert!(data.find_path("/test_module:stateLeaf").is_ok());
+    assert!(data.find_path(LEAF).is_ok());
 
     let data = session
         .get_data(
@@ -358,11 +368,10 @@ fn test_get_data_options_for_operational_DS() {
             SrGetOptions::SR_OPER_NO_STATE,
         )
         .unwrap();
-    assert!(data.find_path("/test_module:stateLeaf", false).is_err());
-    assert!(data.find_path(LEAF, false).is_ok());
+    assert!(data.find_path("/test_module:stateLeaf").is_err());
+    assert!(data.find_path(LEAF).is_ok());
 }
 
-#[test]
 fn test_edit_batch() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
@@ -386,9 +395,7 @@ fn test_edit_batch() {
         .is_err());
 
     let mut batch = DataTree::new(&ctx);
-    batch
-        .new_path(LEAF, Some("123"), NewValueCreationOptions::empty())
-        .unwrap();
+    batch.new_path(LEAF, Some("123"), false).unwrap();
 
     assert!(session.edit_batch(&batch, DefaultOperation::Merge).is_ok());
     assert!(session.apply_changes(None).is_ok());
@@ -399,7 +406,6 @@ fn test_edit_batch() {
     assert_eq!(data, Some(DataValue::Int32(123)));
 }
 
-#[test]
 fn test_get_items() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
@@ -431,7 +437,6 @@ fn test_get_items() {
     }
 }
 
-#[test]
 fn test_pending_changes() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
@@ -482,7 +487,7 @@ fn test_pending_changes() {
 fn prepare_test_replace_config<'a>(
     session: &mut SrSession,
     ctx: &'a ManuallyDrop<Context>,
-) -> DataTree<'a> {
+) -> ManuallyDrop<DataTree<'a>> {
     assert!(session
         .get_data(&ctx, LEAF, 0, None, SrGetOptions::SR_OPER_DEFAULT)
         .is_err());
@@ -503,10 +508,9 @@ fn prepare_test_replace_config<'a>(
     let data = data.reference().unwrap().value();
     assert_eq!(data, Some(DataValue::Int32(123)));
 
-    conf
+    ManuallyDrop::new(conf)
 }
 
-#[test]
 fn test_replace_config_with_none() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
@@ -527,7 +531,6 @@ fn test_replace_config_with_none() {
         .is_err());
 }
 
-#[test]
 fn test_replace_config_with_config() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();
@@ -550,7 +553,6 @@ fn test_replace_config_with_config() {
     assert_eq!(value, Some(DataValue::Int32(1)));
 }
 
-#[test]
 fn test_copy_config_from_startup_to_running() {
     log_stderr(SrLogLevel::Error);
     let _setup = Setup::setup_test_module();

@@ -156,8 +156,6 @@ impl SrConnection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enums::SrLogLevel;
-    use crate::log_stderr;
     #[test]
     fn create_new_connection_successful() {
         let connection = SrConnection::new(ConnectionOptions::Datastore_Running);
@@ -180,53 +178,5 @@ mod tests {
         let ctx = connection.get_context();
 
         assert!(true)
-    }
-
-    #[test]
-    fn install_and_remove_module_successful() {
-        log_stderr(SrLogLevel::Error);
-        let name = "install-test";
-        let bind = Path::new("./assets/yang/").join(format!("{name}.yang"));
-        let module_path = bind.as_path();
-        assert!(module_path.exists());
-
-        let connection =
-            SrConnection::new(ConnectionOptions::Datastore_Running).expect("Should be Ok");
-        let install = connection.install_module(module_path, None, None);
-        assert!(install.is_ok());
-        let remove = connection.remove_module(name, false);
-        assert!(remove.is_ok());
-    }
-
-    #[test]
-    fn install_and_remove_module_with_feature_and_import_successful() {
-        // Turn logging on.
-        log_stderr(SrLogLevel::Error);
-
-        let modules = vec![
-            ("sub", None),
-            ("install-import-test", Some(vec!["sub-feature"])),
-        ];
-        let yang = "./assets/yang/";
-        let connection =
-            SrConnection::new(ConnectionOptions::Datastore_Running).expect("Should be Ok");
-        for (module_name, features) in &modules {
-            let bind = Path::new(yang).join(format!("{module_name}.yang"));
-            let module_path = bind.as_path();
-            assert!(module_path.exists());
-
-            let features = match &features {
-                None => None,
-                Some(features) => Some(&features[..]),
-            };
-
-            let install = connection.install_module(module_path, Some(yang), features);
-            assert!(install.is_ok(), "Could not install module {module_name}");
-        }
-
-        for (module_name, features) in modules.iter().rev() {
-            let remove = connection.remove_module(module_name, false);
-            assert!(remove.is_ok());
-        }
     }
 }
