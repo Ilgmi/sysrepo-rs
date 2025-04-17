@@ -17,7 +17,8 @@ pub enum ConnectionOptions {
     Datastore_Running = ffi_sys::sr_datastore_t_SR_DS_RUNNING as isize,
     Datastore_Candidate = ffi_sys::sr_datastore_t_SR_DS_CANDIDATE as isize,
     Datastore_Operational = ffi_sys::sr_datastore_t_SR_DS_OPERATIONAL as isize,
-    Datastore_Factory_Default = ffi_sys::sr_datastore_t_SR_DS_FACTORY_DEFAULT as isize,
+    Datastore_Factory_Default =
+        ffi_sys::sr_datastore_t_SR_DS_FACTORY_DEFAULT as isize,
 }
 
 pub struct SrConnection {
@@ -63,13 +64,21 @@ impl SrConnection {
     }
 
     /// Lookup session from map.
-    pub fn lookup_session(&mut self, id: &SrSessionId) -> Option<&mut SrSession> {
+    pub fn lookup_session(
+        &mut self,
+        id: &SrSessionId,
+    ) -> Option<&mut SrSession> {
         self.sessions.get_mut(id)
     }
 
-    pub fn start_session(&mut self, ds: SrDatastore) -> Result<&mut SrSession, SrError> {
+    pub fn start_session(
+        &mut self,
+        ds: SrDatastore,
+    ) -> Result<&mut SrSession, SrError> {
         let mut sess = std::ptr::null_mut();
-        let rc = unsafe { ffi_sys::sr_session_start(self.raw_connection, ds as u32, &mut sess) };
+        let rc = unsafe {
+            ffi_sys::sr_session_start(self.raw_connection, ds as u32, &mut sess)
+        };
         if rc != SrError::Ok as i32 {
             Err(SrError::from(rc))
         } else {
@@ -82,7 +91,8 @@ impl SrConnection {
     /// Returns the libyang3 context associated with this Session
     pub fn get_context(&self) -> ManuallyDrop<Context> {
         let ctx = unsafe {
-            let ctx = ffi_sys::sr_acquire_context(self.raw_connection) as *mut libyang3_sys::ly_ctx;
+            let ctx = ffi_sys::sr_acquire_context(self.raw_connection)
+                as *mut libyang3_sys::ly_ctx;
             Context::from_raw(&(), ctx)
         };
         ManuallyDrop::new(ctx)
@@ -107,16 +117,20 @@ impl SrConnection {
             Some(dirs) => Some(str_to_cstring(dirs)?),
         };
 
-        let search_dirs = search_dirs.as_ref().map_or(ptr::null(), |x| x.as_ptr());
+        let search_dirs =
+            search_dirs.as_ref().map_or(ptr::null(), |x| x.as_ptr());
 
         let features_cstr = match features {
             None => {
                 vec![]
             }
-            Some(features) => features.iter().map(|x| CString::new(*x).unwrap()).collect(),
+            Some(features) => {
+                features.iter().map(|x| CString::new(*x).unwrap()).collect()
+            }
         };
 
-        let mut features_ptr = features_cstr.iter().map(|x| x.as_ptr()).collect::<Vec<_>>();
+        let mut features_ptr =
+            features_cstr.iter().map(|x| x.as_ptr()).collect::<Vec<_>>();
         features_ptr.push(ptr::null());
 
         let ret = unsafe {
@@ -135,15 +149,21 @@ impl SrConnection {
         Ok(())
     }
 
-    pub fn remove_module(&self, module_name: &str, force: bool) -> Result<(), SrError> {
-        let path = CString::new(module_name).or_else(|_| Err(SrError::NotFound))?;
+    pub fn remove_module(
+        &self,
+        module_name: &str,
+        force: bool,
+    ) -> Result<(), SrError> {
+        let path = CString::new(module_name).map_err(|_| SrError::NotFound)?;
 
         let force = match force {
             true => 1 as c_int,
             false => 0 as c_int,
         };
 
-        let ret = unsafe { ffi_sys::sr_remove_module(self.raw_connection, path.as_ptr(), force) };
+        let ret = unsafe {
+            ffi_sys::sr_remove_module(self.raw_connection, path.as_ptr(), force)
+        };
 
         if ret != SrError::Ok as i32 {
             return Err(SrError::from(ret));
@@ -158,13 +178,15 @@ mod tests {
     use super::*;
     #[test]
     fn create_new_connection_successful() {
-        let connection = SrConnection::new(ConnectionOptions::Datastore_Running);
+        let connection =
+            SrConnection::new(ConnectionOptions::Datastore_Running);
         assert!(connection.is_ok());
     }
 
     #[test]
     fn create_new_session_successful() {
-        let connection = SrConnection::new(ConnectionOptions::Datastore_Running);
+        let connection =
+            SrConnection::new(ConnectionOptions::Datastore_Running);
         assert!(connection.is_ok());
         let mut c = connection.unwrap();
         let session = c.start_session(SrDatastore::Running);
@@ -174,7 +196,8 @@ mod tests {
     #[test]
     fn get_contextsuccessful() {
         let connection =
-            SrConnection::new(ConnectionOptions::Datastore_Running).expect("connection failed");
+            SrConnection::new(ConnectionOptions::Datastore_Running)
+                .expect("connection failed");
         let ctx = connection.get_context();
 
         assert!(true)

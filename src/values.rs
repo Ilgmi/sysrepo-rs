@@ -11,8 +11,9 @@ pub struct SrValues {
 
 impl SrValues {
     pub fn new(size: usize, owned: bool) -> Self {
-        let raw_values = unsafe { libc::malloc(std::mem::size_of::<ffi_sys::sr_val_t>() * size) }
-            as *mut ffi_sys::sr_val_t;
+        let raw_values = unsafe {
+            libc::malloc(std::mem::size_of::<ffi_sys::sr_val_t>() * size)
+        } as *mut ffi_sys::sr_val_t;
         Self {
             raw_values,
             len: size,
@@ -20,7 +21,11 @@ impl SrValues {
         }
     }
 
-    pub fn from_raw(values: *mut ffi_sys::sr_val_t, size: usize, owned: bool) -> Self {
+    pub fn from_raw(
+        values: *mut ffi_sys::sr_val_t,
+        size: usize,
+        owned: bool,
+    ) -> Self {
         Self {
             raw_values: values,
             len: size,
@@ -30,6 +35,10 @@ impl SrValues {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     pub fn add_value(
@@ -43,9 +52,12 @@ impl SrValues {
             return Err(SrError::Internal);
         }
 
-        let values = unsafe { std::slice::from_raw_parts_mut(self.raw_values, self.len) };
+        let values = unsafe {
+            std::slice::from_raw_parts_mut(self.raw_values, self.len)
+        };
         let mut value = values[index];
-        let val = SrValue::new(&mut value, xpath, data, dflt, false)?;
+        let val =
+            unsafe { SrValue::new(&mut value, xpath, data, dflt, false)? };
         unsafe {
             let _ = std::mem::replace(&mut values[index], *val.as_raw());
         }
@@ -57,8 +69,10 @@ impl SrValues {
             return Err(SrError::Internal);
         }
 
-        let values = unsafe { std::slice::from_raw_parts_mut(self.raw_values, self.len) };
-        let value = SrValue::from(&mut values[index], false);
+        let values = unsafe {
+            std::slice::from_raw_parts_mut(self.raw_values, self.len)
+        };
+        let value = unsafe { SrValue::from(&mut values[index], false) };
         Ok(value)
     }
 
@@ -86,7 +100,12 @@ mod tests {
     #[test]
     fn create_values_and_add_some_value_successful() {
         let mut values = SrValues::new(1, false);
-        let r = values.add_value(0, "".to_string(), Data::String("test".to_string()), false);
+        let r = values.add_value(
+            0,
+            "".to_string(),
+            Data::String("test".to_string()),
+            false,
+        );
         assert_eq!(values.len(), 1);
         assert!(r.is_ok());
     }

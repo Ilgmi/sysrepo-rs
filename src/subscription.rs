@@ -22,12 +22,6 @@ pub struct SrSubscription {
 }
 
 impl SrSubscription {
-    pub fn new() -> Self {
-        Self {
-            raw_subscription: std::ptr::null_mut(),
-        }
-    }
-
     pub unsafe fn get_raw_mut(&self) -> *mut ffi_sys::sr_subscription_ctx_t {
         self.raw_subscription
     }
@@ -58,13 +52,20 @@ impl SrSubscription {
         private_data: *mut c_void,
     ) -> i32
     where
-        F: FnMut(SrSession, u32, &str, Option<&str>, SrEvent, u32) -> Result<(), SrError>,
+        F: FnMut(
+            SrSession,
+            u32,
+            &str,
+            Option<&str>,
+            SrEvent,
+            u32,
+        ) -> Result<(), SrError>,
     {
         let callback_ptr = private_data as *mut F;
         let callback = &mut *callback_ptr;
 
         let mod_name = CStr::from_ptr(mod_name).to_str().unwrap();
-        let path = if path == std::ptr::null_mut() {
+        let path = if path.is_null() {
             None
         } else {
             Some(CStr::from_ptr(path).to_str().unwrap())
@@ -88,9 +89,17 @@ impl SrSubscription {
         options: ffi_sys::sr_subscr_options_t,
     ) -> Result<Self, SrError>
     where
-        F: FnMut(SrSession, u32, &str, Option<&str>, SrEvent, u32) -> Result<(), SrError>,
+        F: FnMut(
+            SrSession,
+            u32,
+            &str,
+            Option<&str>,
+            SrEvent,
+            u32,
+        ) -> Result<(), SrError>,
     {
-        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t = std::ptr::null_mut();
+        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t =
+            std::ptr::null_mut();
         let data = Box::into_raw(Box::new(module_change_cb));
         let module_name = dup_str(module_name)?;
         let xpath = match xpath {
@@ -193,7 +202,7 @@ impl SrSubscription {
 
         let module_name = CStr::from_ptr(module_name).to_str().unwrap();
         let xpath = CStr::from_ptr(path).to_str().unwrap();
-        let request_xpath = if request_xpath == std::ptr::null_mut() {
+        let request_xpath = if request_xpath.is_null() {
             None
         } else {
             Some(CStr::from_ptr(request_xpath).to_str().unwrap())
@@ -202,7 +211,7 @@ impl SrSubscription {
         let mut session = SrSession::from(sess, false);
         let ctx = ManuallyDrop::new(session.get_context());
 
-        let node_opt = if *parent == std::ptr::null_mut() {
+        let node_opt = if (*parent).is_null() {
             None
         } else {
             Some(DataTree::from_raw(&ctx, *parent))
@@ -252,11 +261,16 @@ impl SrSubscription {
         let callback = &mut *callback_ptr;
 
         let op_path = CStr::from_ptr(op_path).to_str().unwrap();
-        let inputs = SrValues::from_raw(input as *mut ffi_sys::sr_val_t, input_cnt, false);
+        let inputs = SrValues::from_raw(
+            input as *mut ffi_sys::sr_val_t,
+            input_cnt,
+            false,
+        );
         let sess = SrSession::from(sess, false);
         let event = SrEvent::try_from(event).expect("Convert error");
 
-        let sr_outputs = callback(sess, sub_id, op_path, inputs, event, request_id);
+        let sr_outputs =
+            callback(sess, sub_id, op_path, inputs, event, request_id);
         let (raw, len) = sr_outputs.as_raw();
         *output = raw;
         *output_cnt = len;
@@ -273,9 +287,11 @@ impl SrSubscription {
         options: ffi_sys::sr_subscr_options_t,
     ) -> Result<Self, SrError>
     where
-        F: FnMut(SrSession, u32, &str, SrValues, SrEvent, u32) -> SrValues + 'static,
+        F: FnMut(SrSession, u32, &str, SrValues, SrEvent, u32) -> SrValues
+            + 'static,
     {
-        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t = std::ptr::null_mut();
+        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t =
+            std::ptr::null_mut();
         let data = Box::into_raw(Box::new(callback));
         let xpath = match xpath {
             Some(path) => Some(str_to_cstring(path)?),
@@ -334,8 +350,10 @@ impl SrSubscription {
         let mut sess = SrSession::from(sess, false);
         let ctx = sess.get_context();
 
-        let inputs = ManuallyDrop::new(DataTree::from_raw(&ctx, input as *mut _));
-        let mut output = ManuallyDrop::new(DataTree::from_raw(&ctx, output as *mut _));
+        let inputs =
+            ManuallyDrop::new(DataTree::from_raw(&ctx, input as *mut _));
+        let mut output =
+            ManuallyDrop::new(DataTree::from_raw(&ctx, output as *mut _));
 
         let event = SrEvent::try_from(event).expect("Convert error");
 
@@ -372,7 +390,8 @@ impl SrSubscription {
             u32,
         ),
     {
-        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t = std::ptr::null_mut();
+        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t =
+            std::ptr::null_mut();
         let data = Box::into_raw(Box::new(callback));
         let xpath = match xpath {
             Some(path) => Some(str_to_cstring(path)?),
@@ -414,8 +433,14 @@ impl SrSubscription {
         opts: ffi_sys::sr_subscr_options_t,
     ) -> Result<Self, SrError>
     where
-        F: FnMut(SrSession, u32, SrNotifType, Option<&str>, SrValues, *mut ffi_sys::timespec)
-            + 'static,
+        F: FnMut(
+                SrSession,
+                u32,
+                SrNotifType,
+                Option<&str>,
+                SrValues,
+                *mut ffi_sys::timespec,
+            ) + 'static,
     {
         let mod_name = dup_str(module_name)?;
         let xpath = match xpath {
@@ -428,7 +453,8 @@ impl SrSubscription {
         let start_time = start_time.unwrap_or(std::ptr::null_mut());
         let stop_time = stop_time.unwrap_or(std::ptr::null_mut());
 
-        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t = std::ptr::null_mut();
+        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t =
+            std::ptr::null_mut();
         let data = Box::into_raw(Box::new(callback));
         let rc = unsafe {
             ffi_sys::sr_notif_subscribe(
@@ -462,7 +488,13 @@ impl SrSubscription {
         opts: ffi_sys::sr_subscr_options_t,
     ) -> Result<Self, SrError>
     where
-        F: FnMut(&SrSession, u32, SrNotifType, &DataTree, *mut ffi_sys::timespec),
+        F: FnMut(
+            &SrSession,
+            u32,
+            SrNotifType,
+            &DataTree<'_>,
+            *mut ffi_sys::timespec,
+        ),
     {
         let mod_name = dup_str(module_name)?;
         let xpath = match xpath {
@@ -475,7 +507,8 @@ impl SrSubscription {
         let start_time = start_time.unwrap_or(std::ptr::null_mut());
         let stop_time = stop_time.unwrap_or(std::ptr::null_mut());
 
-        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t = std::ptr::null_mut();
+        let mut subscription_ctx: *mut ffi_sys::sr_subscription_ctx_t =
+            std::ptr::null_mut();
         let data = Box::into_raw(Box::new(callback));
         let rc = unsafe {
             ffi_sys::sr_notif_subscribe_tree(
@@ -507,21 +540,26 @@ impl SrSubscription {
         timestamp: *mut ffi_sys::timespec,
         private_data: *mut std::os::raw::c_void,
     ) where
-        F: FnMut(&SrSession, u32, SrNotifType, &DataTree, *mut ffi_sys::timespec),
+        F: FnMut(
+            &SrSession,
+            u32,
+            SrNotifType,
+            &DataTree<'_>,
+            *mut ffi_sys::timespec,
+        ),
     {
         let callback_ptr = private_data as *mut F;
         let callback = &mut *callback_ptr;
 
         let session = SrSession::from(sess, false);
         let ctx = session.get_context();
-        let data_tree = ManuallyDrop::new(DataTree::from_raw(&ctx, notif as *mut _));
+        let data_tree =
+            ManuallyDrop::new(DataTree::from_raw(&ctx, notif as *mut _));
 
-        let notif_type = SrNotifType::try_from(notif_type).map_err(|_| SrError::Internal);
-        match notif_type {
-            Ok(notif_type) => {
-                callback(&session, sub_id, notif_type, &data_tree, timestamp);
-            }
-            Err(_) => {}
+        let notif_type =
+            SrNotifType::try_from(notif_type).map_err(|_| SrError::Internal);
+        if let Ok(notif_type) = notif_type {
+            callback(&session, sub_id, notif_type, &data_tree, timestamp);
         }
     }
 
@@ -535,7 +573,14 @@ impl SrSubscription {
         timestamp: *mut ffi_sys::timespec,
         private_data: *mut c_void,
     ) where
-        F: FnMut(SrSession, u32, SrNotifType, Option<&str>, SrValues, *mut ffi_sys::timespec),
+        F: FnMut(
+            SrSession,
+            u32,
+            SrNotifType,
+            Option<&str>,
+            SrValues,
+            *mut ffi_sys::timespec,
+        ),
     {
         let callback_ptr = private_data as *mut F;
         let callback = &mut *callback_ptr;
@@ -544,14 +589,16 @@ impl SrSubscription {
         } else {
             Some(CStr::from_ptr(path).to_str().unwrap())
         };
-        let sr_values = SrValues::from_raw(values as *mut ffi_sys::sr_val_t, values_cnt, false);
+        let sr_values = SrValues::from_raw(
+            values as *mut ffi_sys::sr_val_t,
+            values_cnt,
+            false,
+        );
         let sess = SrSession::from(sess, false);
-        let notif_type = SrNotifType::try_from(notif_type).map_err(|_| SrError::Internal);
-        match notif_type {
-            Ok(notif_type) => {
-                callback(sess, sub_id, notif_type, xpath, sr_values, timestamp);
-            }
-            Err(_) => {}
+        let notif_type =
+            SrNotifType::try_from(notif_type).map_err(|_| SrError::Internal);
+        if let Ok(notif_type) = notif_type {
+            callback(sess, sub_id, notif_type, xpath, sr_values, timestamp);
         }
     }
 }

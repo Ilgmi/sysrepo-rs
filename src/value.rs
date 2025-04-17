@@ -1,6 +1,6 @@
 use crate::common::str_to_cstring;
 use crate::errors::SrError;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::fmt::{Display, Formatter};
 use sysrepo_sys as sys_ffi;
 
@@ -82,7 +82,9 @@ impl From<sys_ffi::sr_val_type_t> for ValType {
             sys_ffi::sr_val_type_t_SR_UNKNOWN_T => Self::Unknown,
             sys_ffi::sr_val_type_t_SR_LIST_T => Self::List,
             sys_ffi::sr_val_type_t_SR_CONTAINER_T => Self::Container,
-            sys_ffi::sr_val_type_t_SR_CONTAINER_PRESENCE_T => Self::ContainerPresence,
+            sys_ffi::sr_val_type_t_SR_CONTAINER_PRESENCE_T => {
+                Self::ContainerPresence
+            }
             sys_ffi::sr_val_type_t_SR_LEAF_EMPTY_T => Self::LeafEmpty,
             sys_ffi::sr_val_type_t_SR_NOTIFICATION_T => Self::Notification,
             sys_ffi::sr_val_type_t_SR_BINARY_T => Self::Binary,
@@ -144,7 +146,7 @@ pub struct SrValue {
 }
 
 impl SrValue {
-    pub fn from(value: *mut sys_ffi::sr_val_t, owned: bool) -> Self {
+    pub unsafe fn from(value: *mut sys_ffi::sr_val_t, owned: bool) -> Self {
         if value.is_null() {
             return Self {
                 sr_value: value,
@@ -156,24 +158,30 @@ impl SrValue {
 
         let val_type: ValType = unsafe { (*value).type_.into() };
         let data = match val_type {
-            ValType::Unknown => Data::String(String::from("(sr_val_type_t_SR_UNKNOWN_T instance)")),
-            ValType::List => Data::String(String::from("(sr_val_type_t_SR_LIST_T instance)")),
-            ValType::Container => {
-                Data::String(String::from("(sr_val_type_t_SR_CONTAINER_T instance)"))
+            ValType::Unknown => Data::String(String::from(
+                "(sr_val_type_t_SR_UNKNOWN_T instance)",
+            )),
+            ValType::List => {
+                Data::String(String::from("(sr_val_type_t_SR_LIST_T instance)"))
             }
+            ValType::Container => Data::String(String::from(
+                "(sr_val_type_t_SR_CONTAINER_T instance)",
+            )),
             ValType::ContainerPresence => Data::String(String::from(
                 "(sr_val_type_t_SR_CONTAINER_PRESENCE_T instance)",
             )),
             ValType::LeafEmpty => Data::Empty,
-            ValType::Notification => {
-                Data::String(String::from("(sr_val_type_t_SR_NOTIFICATION_T instance)"))
-            }
+            ValType::Notification => Data::String(String::from(
+                "(sr_val_type_t_SR_NOTIFICATION_T instance)",
+            )),
             ValType::Binary => {
-                let binary_val = unsafe { CStr::from_ptr((*value).data.binary_val) };
+                let binary_val =
+                    unsafe { CStr::from_ptr((*value).data.binary_val) };
                 Data::Binary(binary_val.to_string_lossy().to_string())
             }
             ValType::Bits => {
-                let bits_val = unsafe { CStr::from_ptr((*value).data.bits_val) };
+                let bits_val =
+                    unsafe { CStr::from_ptr((*value).data.bits_val) };
                 Data::Bits(bits_val.to_string_lossy().to_string())
             }
             ValType::Bool => {
@@ -185,16 +193,23 @@ impl SrValue {
                 Data::Decimal64(decimal_val)
             }
             ValType::Enum => {
-                let enum_val = unsafe { CStr::from_ptr((*value).data.enum_val) };
+                let enum_val =
+                    unsafe { CStr::from_ptr((*value).data.enum_val) };
                 Data::Enumeration(enum_val.to_str().unwrap().to_string())
             }
             ValType::IdentityRef => {
-                let identityref_val = unsafe { CStr::from_ptr((*value).data.identityref_val) };
-                Data::InstanceIdentifier(identityref_val.to_str().unwrap().to_string())
+                let identityref_val =
+                    unsafe { CStr::from_ptr((*value).data.identityref_val) };
+                Data::InstanceIdentifier(
+                    identityref_val.to_str().unwrap().to_string(),
+                )
             }
             ValType::InstanceId => {
-                let instanceid_val = unsafe { CStr::from_ptr((*value).data.instanceid_val) };
-                Data::InstanceIdentifier(instanceid_val.to_str().unwrap().to_string())
+                let instanceid_val =
+                    unsafe { CStr::from_ptr((*value).data.instanceid_val) };
+                Data::InstanceIdentifier(
+                    instanceid_val.to_str().unwrap().to_string(),
+                )
             }
             ValType::Int8 => {
                 let int_8 = unsafe { (*value).data.int8_val };
@@ -213,7 +228,8 @@ impl SrValue {
                 Data::Int64(int_64)
             }
             ValType::String => {
-                let string_val = unsafe { CStr::from_ptr((*value).data.string_val) };
+                let string_val =
+                    unsafe { CStr::from_ptr((*value).data.string_val) };
                 Data::String(string_val.to_string_lossy().to_string())
             }
             ValType::Uint8 => {
@@ -232,8 +248,12 @@ impl SrValue {
                 let uint_64 = unsafe { (*value).data.uint64_val };
                 Data::UInt64(uint_64)
             }
-            ValType::AnyXML => Data::String(String::from("(sr_val_type_t_SR_ANYXML_T instance)")),
-            ValType::AnyData => Data::String(String::from("(sr_val_type_t_SR_ANYDATA_T instance)")),
+            ValType::AnyXML => Data::String(String::from(
+                "(sr_val_type_t_SR_ANYXML_T instance)",
+            )),
+            ValType::AnyData => Data::String(String::from(
+                "(sr_val_type_t_SR_ANYDATA_T instance)",
+            )),
         };
 
         Self {
@@ -244,7 +264,7 @@ impl SrValue {
         }
     }
 
-    pub fn new(
+    pub unsafe fn new(
         val: *mut sys_ffi::sr_val_t,
         xpath: String,
         data: Data,
@@ -256,6 +276,10 @@ impl SrValue {
         let val_type = ValType::from(&data);
 
         unsafe {
+            if val.is_null() {
+                return Err(SrError::Internal);
+            }
+
             (*val).xpath = xpath_ptr;
             (*val).dflt = if dflt { 1 } else { 0 };
             match &data {
@@ -370,6 +394,7 @@ impl Drop for SrValue {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::ffi::CString;
     use std::os::raw::c_char;
 
     #[test]
@@ -389,12 +414,14 @@ mod test {
         };
         let test_val_t = &mut test_val_t as *mut sys_ffi::sr_val_t;
 
-        let value = SrValue::from(test_val_t, false);
+        let value = unsafe { SrValue::from(test_val_t, false) };
         assert_eq!(value.xpath(), xpath);
         assert_eq!(value.val_type, ValType::String);
     }
 
-    fn string_to_mut_c_char(s: &str) -> Result<*mut std::os::raw::c_char, std::ffi::NulError> {
+    fn string_to_mut_c_char(
+        s: &str,
+    ) -> Result<*mut std::os::raw::c_char, std::ffi::NulError> {
         let c_string = CString::new(s)?;
         Ok(c_string.into_raw())
     }
