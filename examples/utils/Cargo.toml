@@ -8,7 +8,6 @@ name = "utils"
 version = "0.3.0"
 
 [dependencies]
-nix = "0.17.0"
-sysrepo = {path = "../.."}
+nix = "0.29.0"
 sysrepo-sys = { path = "../../sysrepo-sys", version = "0.1.0" }
-yang3 = { path = "../../../yang-rs" }
+
