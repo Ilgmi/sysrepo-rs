@@ -48,17 +48,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust
         run: rustup update stable
+      - name: Install Yang
+        run: sudo apt-get -y install libyang-dev
+      - name: Install Sysrepo-dev
+        run: sudo apt-get -y install libsysrepo-dev
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
         run: cargo llvm-cov --features bundled --codecov --output-path codecov.json
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v4
-        if: github.event_name != 'pull_request'
-        with:
-          files: ./lcov.info
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
+  #      - name: Upload to Codecov
+  #        uses: codecov/codecov-action@v4
+  #        if: github.event_name != 'pull_request'
+  #        with:
+  #          files: ./lcov.info
+  #          fail_ci_if_error: false
+  #          token: ${{ secrets.CODECOV_TOKEN }}
 
   tests_arm:
     name: Tests (Arm64)
