@@ -55,7 +55,7 @@ jobs:
           path: libyang
           ref: 'v3.1.0'
       - name: build libyang
-        run: cd libyang; mkdir build; cd build; cmake ..; make; make install
+        run: cd libyang; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
       - name: Checkout sysrepo repo
         uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
           path: sysrepo
           ref: 'v3.6.10'
       - name: build sysrepo
-        run: cd sysrepo; mkdir build; cd build; cmake ..; make; make install
+        run: cd sysrepo; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
