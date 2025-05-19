@@ -62,7 +62,7 @@ jobs:
         with:
           repository: sysrepo/sysrepo
           path: sysrepo
-          ref: 'v3.6.10'
+          ref: 'v3.6.11'
       - name: build sysrepo
         run: cd sysrepo; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
