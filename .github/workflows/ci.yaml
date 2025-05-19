@@ -53,7 +53,7 @@ jobs:
         with:
           repository: CESNET/libyang
           path: libyang
-          ref: 'v3.1.0'
+          ref: 'v3.12.2'
       - name: build libyang
         run: cd libyang; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
