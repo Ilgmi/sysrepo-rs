@@ -48,10 +48,24 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust
         run: rustup update stable
-      - name: Install Yang
-        run: sudo apt-get -y install libyang-dev
-      - name: Install Sysrepo-dev
-        run: sudo apt-get -y install libsysrepo-dev
+      - name: Checkout libyang repo
+        uses: actions/checkout@v4
+        with:
+          repository: CESNET/libyang
+          path: libyang
+          ref: 'v3.1.0'
+      - name: build libyang
+        run: cd libyang; mkdir build; cd build; cmake ..; make; make install
+
+      - name: Checkout sysrepo repo
+        uses: actions/checkout@v4
+        with:
+          repository: sysrepo/sysrepo
+          path: sysrepo
+          ref: 'v3.6.10'
+      - name: build sysrepo
+        run: cd sysrepo; mkdir build; cd build; cmake ..; make; make install
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
