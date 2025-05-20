@@ -63,6 +63,9 @@ jobs:
       - name: build sysrepo
         run: cd sysrepo; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
+      - name: add ldconfig
+        run: sudo echo "/usr/local/lib64/" >> /etc/ld.so.conf; sudo echo "/usr/local/lib/" >> /etc/ld.so.conf; sudo ldconfig
+
       - name: Run Clippy
         run: cargo clippy --no-deps
 
