@@ -64,7 +64,7 @@ jobs:
         run: cd sysrepo; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
       - name: Run Clippy
-        run: cargo clippy
+        run: cargo clippy --no-deps
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
