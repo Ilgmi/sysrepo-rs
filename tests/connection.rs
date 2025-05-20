@@ -38,7 +38,7 @@ fn install_and_remove_module_successful() {
         assert!(install.is_ok(), "Could not install module {module_name}");
     }
 
-    for (module_name, features) in modules.iter().rev() {
+    for (module_name, _features) in modules.iter().rev() {
         let remove = connection.remove_module(module_name, false);
         assert!(remove.is_ok());
     }

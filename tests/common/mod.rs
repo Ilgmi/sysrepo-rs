@@ -2,24 +2,24 @@ use std::path::Path;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
 use sysrepo::enums::SrDatastore;
 
-const YANG: &str = "./assets/yang";
+const _YANG: &str = "./assets/yang";
 const TEST_MODULE: &str = "./assets/yang/test_module.yang";
-const INSTALL_IMPORT: &str = "/assets/yang/install-import-test.yang";
-const INSTALL_TEST: &str = "./assets/yang/install-test.yang";
-const SUB: &str = "./assets/yang/sub.yang";
+const _INSTALL_IMPORT: &str = "/assets/yang/install-import-test.yang";
+const _INSTALL_TEST: &str = "./assets/yang/install-test.yang";
+const _SUB: &str = "./assets/yang/sub.yang";
 
-pub struct Setup {
-    connection: SrConnection,
+pub struct _Setup {
+    _connection: SrConnection,
 }
 
-impl Setup {
-    pub fn setup_test_module() -> Self {
+impl _Setup {
+    pub fn _setup_test_module() -> Self {
         let mut connection =
             SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
         connection
             .install_module(Path::new(TEST_MODULE), None, None)
             .unwrap();
-        let modules = vec!["test_module".to_string()];
+
         let stores = vec![
             SrDatastore::Startup,
             SrDatastore::Running,
@@ -29,10 +29,12 @@ impl Setup {
             let session = connection.start_session(store).unwrap();
             session.replace_config(None, None, None).unwrap();
         }
-        Self { connection }
+        Self {
+            _connection: connection,
+        }
     }
 
-    pub fn setup_example() -> Self {
+    pub fn _setup_example() -> Self {
         let con =
             SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
         con.install_module(
@@ -41,6 +43,6 @@ impl Setup {
             None,
         )
         .unwrap();
-        Self { connection: con }
+        Self { _connection: con }
     }
 }

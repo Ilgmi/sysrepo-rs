@@ -1,5 +1,4 @@
-use crate::common::Setup;
-use std::fmt::{Debug, Display};
+use crate::common::_Setup;
 use std::mem::ManuallyDrop;
 use std::time::Duration;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
@@ -33,7 +32,7 @@ fn test_session() {
 fn test_data_manipulation() {
     // Turn logging on.
     log_stderr(SrLogLevel::Error);
-    let _setup = Setup::setup_test_module();
+    let _setup = _Setup::_setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -166,7 +165,7 @@ fn test_data_manipulation() {
 
 fn test_get_data_max_depth() {
     log_stderr(SrLogLevel::Error);
-    let _setup = Setup::setup_test_module();
+    let _setup = _Setup::_setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -344,7 +343,7 @@ fn test_get_data_max_depth() {
 
 fn test_get_data_options_for_operational_ds() {
     log_stderr(SrLogLevel::Error);
-    let _setup = Setup::setup_test_module();
+    let _setup = _Setup::_setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -391,7 +390,7 @@ fn test_get_data_options_for_operational_ds() {
 
 fn test_edit_batch() {
     log_stderr(SrLogLevel::Error);
-    let _setup = Setup::setup_test_module();
+    let _setup = _Setup::_setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -427,7 +426,7 @@ fn test_edit_batch() {
 
 fn test_get_items() {
     log_stderr(SrLogLevel::Error);
-    let _setup = Setup::setup_test_module();
+    let _setup = _Setup::_setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -460,7 +459,7 @@ fn test_get_items() {
 
 fn test_pending_changes() {
     log_stderr(SrLogLevel::Error);
-    let _setup = Setup::setup_test_module();
+    let _setup = _Setup::_setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -537,7 +536,7 @@ fn prepare_test_replace_config<'a>(
 
 fn test_replace_config_with_none() {
     log_stderr(SrLogLevel::Error);
-    let _setup = Setup::setup_test_module();
+    let _setup = _Setup::_setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -559,7 +558,7 @@ fn test_replace_config_with_none() {
 
 fn test_replace_config_with_config() {
     log_stderr(SrLogLevel::Error);
-    let _setup = Setup::setup_test_module();
+    let _setup = _Setup::_setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -583,7 +582,7 @@ fn test_replace_config_with_config() {
 
 fn test_copy_config_from_startup_to_running() {
     log_stderr(SrLogLevel::Error);
-    let _setup = Setup::setup_test_module();
+    let _setup = _Setup::_setup_test_module();
 
     let mut con = SrConnection::new(ConnectionOptions::Datastore_StartUp)
         .expect("connect");
