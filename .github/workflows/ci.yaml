@@ -50,7 +50,7 @@ jobs:
         with:
           repository: CESNET/libyang
           path: libyang
-          ref: {{LIBYANG_VERSION}}
+          ref: "{{ LIBYANG_VERSION }}"
       - name: build libyang
         run: cd libyang; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
@@ -59,7 +59,7 @@ jobs:
         with:
           repository: sysrepo/sysrepo
           path: sysrepo
-          ref: {{SYSREPO_VERSION}}
+          ref: "{{ SYSREPO_VERSION }}"
       - name: build sysrepo
         run: cd sysrepo; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
