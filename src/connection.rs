@@ -193,7 +193,7 @@ mod tests {
         let connection =
             SrConnection::new(ConnectionOptions::Datastore_Running)
                 .expect("connection failed");
-        let ctx = connection.get_context();
+        let _ctx = connection.get_context();
 
         assert!(true)
     }

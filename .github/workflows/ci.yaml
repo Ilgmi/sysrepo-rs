@@ -12,6 +12,8 @@ env:
   CARGO_TERM_COLOR: always
   # Make sure CI fails on all warnings, including Clippy lints
   RUSTFLAGS: "-Dwarnings"
+  LIBYANG_VERSION: "v3.12.2"
+  SYSREPO_VERSION: "v3.6.11"
 
 jobs:
   fmt:
@@ -30,30 +32,25 @@ jobs:
             exit 1
           fi
 
-  clippy_check:
-    name: Linter Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - name: Run Clippy
-        run: cargo clippy
-
   tests_and_coverage_report:
     name: Tests and Coverage Report
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
       - name: Install Rust
         run: rustup update stable
+
       - name: Checkout libyang repo
         uses: actions/checkout@v4
         with:
           repository: CESNET/libyang
           path: libyang
-          ref: 'v3.12.2'
+          ref: {{LIBYANG_VERSION}}
       - name: build libyang
         run: cd libyang; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
@@ -62,9 +59,12 @@ jobs:
         with:
           repository: sysrepo/sysrepo
           path: sysrepo
-          ref: 'v3.6.11'
+          ref: {{SYSREPO_VERSION}}
       - name: build sysrepo
         run: cd sysrepo; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
+
+      - name: Run Clippy
+        run: cargo clippy
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
