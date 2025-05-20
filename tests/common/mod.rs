@@ -3,7 +3,7 @@ use sysrepo::connection::{ConnectionOptions, SrConnection};
 use sysrepo::enums::SrDatastore;
 
 const _YANG: &str = "./assets/yang";
-const TEST_MODULE: &str = "./assets/yang/test_module.yang";
+const _TEST_MODULE: &str = "./assets/yang/test_module.yang";
 const _INSTALL_IMPORT: &str = "/assets/yang/install-import-test.yang";
 const _INSTALL_TEST: &str = "./assets/yang/install-test.yang";
 const _SUB: &str = "./assets/yang/sub.yang";
@@ -17,7 +17,7 @@ impl _Setup {
         let mut connection =
             SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
         connection
-            .install_module(Path::new(TEST_MODULE), None, None)
+            .install_module(Path::new(_TEST_MODULE), None, None)
             .unwrap();
 
         let stores = vec![
