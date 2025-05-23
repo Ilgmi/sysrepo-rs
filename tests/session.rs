@@ -1,5 +1,4 @@
 use crate::common::Setup;
-use std::fmt::{Debug, Display};
 use std::mem::ManuallyDrop;
 use std::time::Duration;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
@@ -13,7 +12,7 @@ use yang3::context::Context;
 use yang3::data::{Data, DataFormat, DataPrinterFlags, DataTree};
 use yang3::schema::{DataValue, SchemaPathFormat};
 
-mod common;
+pub mod common;
 
 const LEAF: &str = "/test_module:testInt32";
 
@@ -224,11 +223,32 @@ fn test_get_data_max_depth() {
 }
 "#
     );
+
     let data = session
         .get_data(
             &ctx,
             "/test_module:cont",
             1,
+            None,
+            SrGetOptions::SR_OPER_DEFAULT,
+        )
+        .unwrap();
+    let str = data
+        .print_string(DataFormat::JSON, DataPrinterFlags::KEEP_EMPTY_CONT)
+        .expect("Expect to print");
+    assert_eq!(
+        str,
+        r#"{
+  "test_module:cont": {}
+}
+"#
+    );
+
+    let data = session
+        .get_data(
+            &ctx,
+            "/test_module:cont",
+            2,
             None,
             SrGetOptions::SR_OPER_DEFAULT,
         )
@@ -250,7 +270,7 @@ fn test_get_data_max_depth() {
         .get_data(
             &ctx,
             "/test_module:cont",
-            2,
+            3,
             None,
             SrGetOptions::SR_OPER_DEFAULT,
         )
@@ -299,8 +319,7 @@ fn test_get_data_max_depth() {
           "name": "nop"
         },
         {
-          "name": "test",
-          "val": "test"
+          "name": "test"
         }
       ]
     }

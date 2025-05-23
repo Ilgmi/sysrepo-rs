@@ -58,11 +58,6 @@ impl SrConnection {
         self.sessions.insert(id, sess);
     }
 
-    /// Add session to map.
-    fn remove_session(&mut self, id: &SrSessionId) {
-        self.sessions.remove(id);
-    }
-
     /// Lookup session from map.
     pub fn lookup_session(
         &mut self,
@@ -198,7 +193,7 @@ mod tests {
         let connection =
             SrConnection::new(ConnectionOptions::Datastore_Running)
                 .expect("connection failed");
-        let ctx = connection.get_context();
+        let _ctx = connection.get_context();
 
         assert!(true)
     }

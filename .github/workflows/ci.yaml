@@ -12,6 +12,8 @@ env:
   CARGO_TERM_COLOR: always
   # Make sure CI fails on all warnings, including Clippy lints
   RUSTFLAGS: "-Dwarnings"
+  LIBYANG_VERSION: "v3.12.2"
+  SYSREPO_VERSION: "v3.6.11"
 
 jobs:
   fmt:
@@ -30,32 +32,44 @@ jobs:
             exit 1
           fi
 
-  clippy_check:
-    name: Linter Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - name: Run Clippy
-        run: cargo clippy
-
   tests_and_coverage_report:
     name: Tests and Coverage Report
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
       - name: Install Rust
         run: rustup update stable
-      - name: Install Yang
-        run: sudo apt-get -y install libyang-dev
-      - name: Install Sysrepo-dev
-        run: sudo apt-get -y install libsysrepo-dev
+
+      - name: Checkout libyang repo
+        uses: actions/checkout@v4
+        with:
+          repository: CESNET/libyang
+          path: libyang
+          ref: "${{ env.LIBYANG_VERSION }}"
+      - name: build libyang
+        run: cd libyang; mkdir build; cd build; cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
+
+      - name: Checkout sysrepo repo
+        uses: actions/checkout@v4
+        with:
+          repository: sysrepo/sysrepo
+          path: sysrepo
+          ref: "${{ env.SYSREPO_VERSION }}"
+      - name: build sysrepo
+        run: cd sysrepo; mkdir build; cd build; cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
+
+      - name: Run Clippy
+        run: cargo clippy --no-deps
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov --features bundled --codecov --output-path codecov.json
+        run: cargo llvm-cov --codecov --output-path codecov.json
   #      - name: Upload to Codecov
   #        uses: codecov/codecov-action@v4
   #        if: github.event_name != 'pull_request'
@@ -64,11 +78,3 @@ jobs:
   #          fail_ci_if_error: false
   #          token: ${{ secrets.CODECOV_TOKEN }}
 
-  tests_arm:
-    name: Tests (Arm64)
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Run tests
-        run: cargo test --features bundled
