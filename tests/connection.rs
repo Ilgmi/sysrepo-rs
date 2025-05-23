@@ -1,7 +1,7 @@
 use std::path::Path;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
 
-mod common;
+pub mod common;
 
 #[test]
 fn install_and_remove_module_successful() {

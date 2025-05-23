@@ -1,23 +1,24 @@
+#[cfg(test)]
 use std::path::Path;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
 use sysrepo::enums::SrDatastore;
 
 const _YANG: &str = "./assets/yang";
-const _TEST_MODULE: &str = "./assets/yang/test_module.yang";
+const TEST_MODULE: &str = "./assets/yang/test_module.yang";
 const _INSTALL_IMPORT: &str = "/assets/yang/install-import-test.yang";
 const _INSTALL_TEST: &str = "./assets/yang/install-test.yang";
 const _SUB: &str = "./assets/yang/sub.yang";
 
-pub struct _Setup {
+pub struct Setup {
     _connection: SrConnection,
 }
 
-impl _Setup {
-    pub fn _setup_test_module() -> Self {
+impl Setup {
+    pub fn setup_test_module() -> Self {
         let mut connection =
             SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
         connection
-            .install_module(Path::new(_TEST_MODULE), None, None)
+            .install_module(Path::new(TEST_MODULE), None, None)
             .unwrap();
 
         let stores = vec![
@@ -34,7 +35,7 @@ impl _Setup {
         }
     }
 
-    pub fn _setup_example() -> Self {
+    pub fn setup_example() -> Self {
         let con =
             SrConnection::new(ConnectionOptions::Datastore_Running).unwrap();
         con.install_module(

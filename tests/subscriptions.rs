@@ -1,4 +1,4 @@
-use crate::common::_Setup;
+use crate::common::Setup;
 use std::ops::{AddAssign, DerefMut};
 use std::sync::{Arc, Mutex};
 use sysrepo::connection::{ConnectionOptions, SrConnection};
@@ -7,11 +7,11 @@ use sysrepo::errors::SrError;
 use sysrepo::log_stderr;
 use sysrepo::session::{SrEvent, SrSession};
 
-mod common;
+pub mod common;
 
 #[test]
 fn test_subscriptions() {
-    let _setup = _Setup::_setup_example();
+    let _setup = Setup::setup_example();
 
     test_module_change::test_call_module_container_value_change();
     test_module_change::test_call_module_change();
@@ -29,7 +29,7 @@ mod test_module_change {
     use super::*;
     pub fn test_call_module_container_value_change() {
         log_stderr(SrLogLevel::Info);
-        let _setup = _Setup::_setup_test_module();
+        let _setup = Setup::setup_test_module();
 
         let mut connection =
             SrConnection::new(ConnectionOptions::Datastore_StartUp).unwrap();

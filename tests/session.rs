@@ -1,4 +1,4 @@
-use crate::common::_Setup;
+use crate::common::Setup;
 use std::mem::ManuallyDrop;
 use std::time::Duration;
 use sysrepo::connection::{ConnectionOptions, SrConnection};
@@ -12,7 +12,7 @@ use yang3::context::Context;
 use yang3::data::{Data, DataFormat, DataPrinterFlags, DataTree};
 use yang3::schema::{DataValue, SchemaPathFormat};
 
-mod common;
+pub mod common;
 
 const LEAF: &str = "/test_module:testInt32";
 
@@ -32,7 +32,7 @@ fn test_session() {
 fn test_data_manipulation() {
     // Turn logging on.
     log_stderr(SrLogLevel::Error);
-    let _setup = _Setup::_setup_test_module();
+    let _setup = Setup::setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -165,7 +165,7 @@ fn test_data_manipulation() {
 
 fn test_get_data_max_depth() {
     log_stderr(SrLogLevel::Error);
-    let _setup = _Setup::_setup_test_module();
+    let _setup = Setup::setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -223,11 +223,32 @@ fn test_get_data_max_depth() {
 }
 "#
     );
+
     let data = session
         .get_data(
             &ctx,
             "/test_module:cont",
             1,
+            None,
+            SrGetOptions::SR_OPER_DEFAULT,
+        )
+        .unwrap();
+    let str = data
+        .print_string(DataFormat::JSON, DataPrinterFlags::KEEP_EMPTY_CONT)
+        .expect("Expect to print");
+    assert_eq!(
+        str,
+        r#"{
+  "test_module:cont": {}
+}
+"#
+    );
+
+    let data = session
+        .get_data(
+            &ctx,
+            "/test_module:cont",
+            2,
             None,
             SrGetOptions::SR_OPER_DEFAULT,
         )
@@ -249,7 +270,7 @@ fn test_get_data_max_depth() {
         .get_data(
             &ctx,
             "/test_module:cont",
-            2,
+            3,
             None,
             SrGetOptions::SR_OPER_DEFAULT,
         )
@@ -298,8 +319,7 @@ fn test_get_data_max_depth() {
           "name": "nop"
         },
         {
-          "name": "test",
-          "val": "test"
+          "name": "test"
         }
       ]
     }
@@ -343,7 +363,7 @@ fn test_get_data_max_depth() {
 
 fn test_get_data_options_for_operational_ds() {
     log_stderr(SrLogLevel::Error);
-    let _setup = _Setup::_setup_test_module();
+    let _setup = Setup::setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -390,7 +410,7 @@ fn test_get_data_options_for_operational_ds() {
 
 fn test_edit_batch() {
     log_stderr(SrLogLevel::Error);
-    let _setup = _Setup::_setup_test_module();
+    let _setup = Setup::setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -426,7 +446,7 @@ fn test_edit_batch() {
 
 fn test_get_items() {
     log_stderr(SrLogLevel::Error);
-    let _setup = _Setup::_setup_test_module();
+    let _setup = Setup::setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -459,7 +479,7 @@ fn test_get_items() {
 
 fn test_pending_changes() {
     log_stderr(SrLogLevel::Error);
-    let _setup = _Setup::_setup_test_module();
+    let _setup = Setup::setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -536,7 +556,7 @@ fn prepare_test_replace_config<'a>(
 
 fn test_replace_config_with_none() {
     log_stderr(SrLogLevel::Error);
-    let _setup = _Setup::_setup_test_module();
+    let _setup = Setup::setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -558,7 +578,7 @@ fn test_replace_config_with_none() {
 
 fn test_replace_config_with_config() {
     log_stderr(SrLogLevel::Error);
-    let _setup = _Setup::_setup_test_module();
+    let _setup = Setup::setup_test_module();
 
     let mut connection =
         SrConnection::new(ConnectionOptions::Datastore_Running)
@@ -582,7 +602,7 @@ fn test_replace_config_with_config() {
 
 fn test_copy_config_from_startup_to_running() {
     log_stderr(SrLogLevel::Error);
-    let _setup = _Setup::_setup_test_module();
+    let _setup = Setup::setup_test_module();
 
     let mut con = SrConnection::new(ConnectionOptions::Datastore_StartUp)
         .expect("connect");
