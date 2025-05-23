@@ -52,7 +52,7 @@ jobs:
           path: libyang
           ref: "${{ env.LIBYANG_VERSION }}"
       - name: build libyang
-        run: cd libyang; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
+        run: cd libyang; mkdir build; cd build; cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
       - name: Checkout sysrepo repo
         uses: actions/checkout@v4
@@ -61,13 +61,7 @@ jobs:
           path: sysrepo
           ref: "${{ env.SYSREPO_VERSION }}"
       - name: build sysrepo
-        run: cd sysrepo; mkdir build; cd build; cmake -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
-
-      - name: add ldconfig
-        run: |
-          echo "/usr/local/lib64/" | sudo tee /etc/ld.so.conf.d/lib.conf
-          echo "/usr/local/lib/" | sudo tee /etc/ld.so.conf.d/lib.conf
-          sudo ldconfig
+        run: cd sysrepo; mkdir build; cd build; cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -D CMAKE_BUILD_TYPE:String="Release" ..; make; sudo make install
 
       - name: Run Clippy
         run: cargo clippy --no-deps
